@@ -757,6 +757,61 @@ textarea {
 }
 
 /* ==================== حاوية الطباعة الخاصة بـ window.print() ==================== */
+/* ==================== بطاقات مركز إدارة وتصدير البيانات ==================== */
+.hub-card {
+  background: #F8FAFC;
+  border: 1.5px solid var(--color-gray-border);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  transition: all 0.2s ease;
+}
+
+.hub-card:hover {
+  border-color: var(--primary-navy);
+  background: #FFFFFF;
+  box-shadow: var(--shadow-sm);
+}
+
+.hub-card-info {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+}
+
+.hub-card-icon {
+  font-size: 26px;
+  min-width: 48px;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #EFF6FF;
+  border-radius: var(--radius-md);
+}
+
+.hub-card-text {
+  flex: 1;
+}
+
+.hub-card-text h4 {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--primary-navy);
+  margin-bottom: 4px;
+}
+
+.hub-card-text p {
+  font-size: 13px;
+  color: #64748B;
+  line-height: 1.45;
+}
+
 #print-root {
   display: none;
 }

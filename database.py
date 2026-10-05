@@ -505,6 +505,17 @@ class Database:
             conn.commit()
             return cursor.rowcount > 0
 
+    def delete_employees_batch(self, emp_ids: List[int]) -> int:
+        """حذف مجموعة من الموظفين دفعة واحدة من قاعدة البيانات (صلاحية مدير النظام فقط)"""
+        if not emp_ids:
+            return 0
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            placeholders = ",".join("?" for _ in emp_ids)
+            cursor.execute(f"DELETE FROM employees WHERE id IN ({placeholders});", tuple(emp_ids))
+            conn.commit()
+            return cursor.rowcount
+
     # ==================== التحقق من سلامة قاعدة البيانات للنسخ الاحتياطي ====================
 
     @staticmethod

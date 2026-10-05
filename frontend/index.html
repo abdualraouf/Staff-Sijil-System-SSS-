@@ -19,19 +19,10 @@
     </div>
 
     <div class="nav-user-panel" id="nav-user-panel" style="display: none;">
-      <!-- أزرار الإدارة الخاصة بمدير النظام فقط -->
-      <div class="toolbar-group admin-only" id="admin-nav-actions" style="display: none;">
-        <button class="btn btn-outline btn-sm" id="btn-open-users" style="color: #FFFFFF; border-color: rgba(255,255,255,0.3);">
-          👥 إدارة المستخدمين
-        </button>
-        <button class="btn btn-outline btn-sm" id="btn-open-settings" style="color: #FFFFFF; border-color: rgba(255,255,255,0.3);">
-          ⚙️ إعدادات الحقول والحالات
-        </button>
-        <button class="btn btn-outline btn-sm" id="btn-backup-db" style="color: #FFFFFF; border-color: rgba(255,255,255,0.3);">
-          💾 نسخة احتياطية
-        </button>
-        <button class="btn btn-outline btn-sm" id="btn-restore-db" style="color: #FFFFFF; border-color: rgba(255,255,255,0.3);">
-          📥 استرجاع نسخة
+      <!-- زر إعدادات النظام الموحد -->
+      <div class="toolbar-group" id="nav-actions-group">
+        <button class="btn btn-outline btn-sm" id="btn-open-settings" style="color: #FFFFFF; border-color: rgba(255,255,255,0.35);">
+          ⚙️ إعدادات النظام
         </button>
       </div>
 
@@ -99,17 +90,17 @@
           <span>🖨️</span>
           <span>طباعة السجلات المحددة</span>
         </button>
+        <button class="btn btn-red admin-only" id="btn-delete-selected" style="display: none;" title="حذف السجلات المحددة نهائياً">
+          <span>🗑️</span>
+          <span>حذف المحدد</span>
+        </button>
       </div>
 
       <div class="toolbar-group">
         <span class="selected-counter" id="selected-count-badge">المحدد: 0 موظف</span>
-        <button class="btn btn-blue" id="btn-export-excel">
-          <span>📊</span>
-          <span>تصدير إكسل</span>
-        </button>
-        <button class="btn btn-blue admin-only" id="btn-import-excel">
-          <span>📥</span>
-          <span>استيراد إكسل</span>
+        <button class="btn btn-blue" id="btn-open-data-hub">
+          <span>📦</span>
+          <span>مركز إدارة وتصدير البيانات</span>
         </button>
       </div>
     </section>
@@ -128,7 +119,7 @@
             <th>القسم / الإدارة</th>
             <th>الدرجة الحالية</th>
             <th>المؤهل العلمي</th>
-            <th style="text-align: center; width: 190px;">الإجراءات</th>
+            <th style="text-align: center; width: 140px;">الإجراءات</th>
           </tr>
         </thead>
         <tbody id="employees-table-body">
@@ -389,20 +380,133 @@
     </div>
   </div>
 
-  <!-- 5. نافذة إعدادات الحقول الديناميكية والحالات (Settings Modal - Admin Only) -->
+  <!-- نافذة مركز إدارة وتصدير البيانات والنسخ الاحتياطي (Data Management Hub) -->
+  <div class="modal-overlay" id="modal-data-hub">
+    <div class="modal-box modal-lg">
+      <div class="modal-header">
+        <h3>مركز إدارة وتصدير البيانات والنسخ الاحتياطي</h3>
+        <button class="modal-close-btn" data-close="modal-data-hub">&times;</button>
+      </div>
+      <div class="modal-body">
+        
+        <!-- تبويبات المركز -->
+        <div style="display: flex; gap: 10px; border-bottom: 2px solid var(--color-gray-border); padding-bottom: 10px; margin-bottom: 16px;">
+          <button class="btn btn-sm btn-blue" id="hub-tab-btn-export">📤 التصدير والنسخ الاحتياطي</button>
+          <button class="btn btn-sm btn-outline" id="hub-tab-btn-import">📥 الاستيراد والاسترجاع</button>
+        </div>
+
+        <!-- محتوى التصدير والنسخ الاحتياطي -->
+        <div id="hub-tab-content-export" style="display: flex; flex-direction: column; gap: 14px;">
+          
+          <!-- بطاقة تصدير إكسل -->
+          <div class="hub-card">
+            <div class="hub-card-info">
+              <div class="hub-card-icon" style="color: var(--color-green);">📊</div>
+              <div class="hub-card-text">
+                <h4>تصدير إلى جدول إكسل (Excel .xlsx)</h4>
+                <p>تصدير السجلات المحددة حالياً أو كافة نتائج البحث النشطة في ملف إكسل منسق بالكامل (RTL) مع كافة الحقول المخصصة.</p>
+                <span id="hub-export-target-hint" style="font-size: 12px; color: var(--color-blue); font-weight: 600;">المستهدف بالتصدير: كافة السجلات المعروضة</span>
+              </div>
+            </div>
+            <button class="btn btn-green btn-sm" id="btn-hub-export-excel">
+              <span>📊</span>
+              <span>تصدير إكسل</span>
+            </button>
+          </div>
+
+          <!-- بطاقة تصدير وورد -->
+          <div class="hub-card">
+            <div class="hub-card-info">
+              <div class="hub-card-icon" style="color: var(--color-blue);">📄</div>
+              <div class="hub-card-text">
+                <h4>تصدير إلى مستند وورد (Word .docx)</h4>
+                <p>تصدير بطاقات موظفين مستقلة (A4) أو كشوفات جدولية مجمعة بصيغة مستند وورد رسمي جاهز للتعديل والطباعة.</p>
+              </div>
+            </div>
+            <button class="btn btn-blue btn-sm" id="btn-hub-export-word">
+              <span>📄</span>
+              <span>إعداد وتصدير وورد</span>
+            </button>
+          </div>
+
+          <!-- بطاقة النسخ الاحتياطي لقاعدة البيانات (مدير النظام فقط) -->
+          <div class="hub-card admin-only" id="hub-backup-card">
+            <div class="hub-card-info">
+              <div class="hub-card-icon" style="color: #6366F1;">💾</div>
+              <div class="hub-card-text">
+                <h4>أخذ نسخة احتياطية لقاعدة البيانات (SQLite .db)</h4>
+                <p>إنشاء نسخة احتياطية فورية وشاملة لكافة بيانات المنظومة الحالية وسجلاتها لحفظها في مجلد خارجي أو قرص تخزين.</p>
+              </div>
+            </div>
+            <button class="btn btn-outline btn-sm" id="btn-hub-backup-db" style="border-color: #6366F1; color: #4338CA;">
+              <span>💾</span>
+              <span>أخذ نسخة احتياطية</span>
+            </button>
+          </div>
+
+        </div>
+
+        <!-- محتوى الاستيراد والاسترجاع -->
+        <div id="hub-tab-content-import" style="display: none; flex-direction: column; gap: 14px;">
+          
+          <!-- بطاقة استيراد إكسل -->
+          <div class="hub-card admin-only" id="hub-import-excel-card">
+            <div class="hub-card-info">
+              <div class="hub-card-icon" style="color: var(--color-green);">📊</div>
+              <div class="hub-card-text">
+                <h4>استيراد موظفين من ملف إكسل (Excel .xlsx)</h4>
+                <p>استيراد السجلات دفعة واحدة من ملف إكسل مع الفحص الصارم للأعمدة ومعالجة وتحديث أي تعارض في الأرقام الوطنية.</p>
+              </div>
+            </div>
+            <button class="btn btn-green btn-sm" id="btn-hub-import-excel">
+              <span>📥</span>
+              <span>معالج استيراد الإكسل</span>
+            </button>
+          </div>
+
+          <!-- بطاقة استرجاع قاعدة البيانات -->
+          <div class="hub-card admin-only" id="hub-restore-db-card" style="border-color: #FECACA; background: #FEF2F2;">
+            <div class="hub-card-info">
+              <div class="hub-card-icon" style="color: var(--color-red); background: #FEE2E2;">📥</div>
+              <div class="hub-card-text">
+                <h4 style="color: var(--color-red);">استرجاع نسخة احتياطية سابقة (Restore .db)</h4>
+                <p style="color: #991B1B;">استرجاع قاعدة بيانات سابقة واستبدال البيانات الحالية بها مع التحديث المباشر للواجهة. (تنبيه: سيتم استبدال البيانات الحالية).</p>
+              </div>
+            </div>
+            <button class="btn btn-red btn-sm" id="btn-hub-restore-db">
+              <span>📥</span>
+              <span>استرجاع نسخة</span>
+            </button>
+          </div>
+
+          <!-- تنبيه للمستخدم غير المدير -->
+          <div class="staff-only" id="hub-import-staff-notice" style="display: none; padding: 24px; text-align: center; color: var(--text-muted); background: #F8FAFC; border-radius: var(--radius-md);">
+            🔒 تنبيه: عمليات استيراد السجلات واسترجاع قواعد البيانات مخصصة لمدير النظام فقط.
+          </div>
+
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" data-close="modal-data-hub">إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. نافذة إعدادات النظام الموحدة (Settings Modal) -->
   <div class="modal-overlay" id="modal-settings">
     <div class="modal-box modal-lg">
       <div class="modal-header">
-        <h3>إدارة الحقول الديناميكية والحالات الوظيفية</h3>
+        <h3>إعدادات المنظومة</h3>
         <button class="modal-close-btn" data-close="modal-settings">&times;</button>
       </div>
       <div class="modal-body">
         
         <!-- التبويبات -->
         <div style="display: flex; gap: 10px; border-bottom: 2px solid var(--color-gray-border); padding-bottom: 10px;">
-          <button class="btn btn-sm btn-blue" id="tab-btn-fields">الحقول الديناميكية</button>
+          <button class="btn btn-sm btn-blue admin-only" id="tab-btn-users">المستخدمون والصلاحيات</button>
+          <button class="btn btn-sm btn-outline" id="tab-btn-fields">الحقول الديناميكية</button>
           <button class="btn btn-sm btn-outline" id="tab-btn-statuses">الحالات الوظيفية</button>
-          <button class="btn btn-sm btn-outline" id="tab-btn-users">المستخدمون والصلاحيات</button>
         </div>
 
         <!-- محتوى تبويب الحقول الديناميكية -->

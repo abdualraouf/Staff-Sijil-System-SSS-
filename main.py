@@ -173,6 +173,30 @@ class AppAPI:
         except Exception as e:
             return {"success": False, "error": f"تعذر إتمام الحذف: {str(e)}"}
 
+    def delete_employees_batch(self, emp_ids: List[int]) -> Dict[str, Any]:
+        """حذف دفعة من الموظفين نهائياً من قاعدة البيانات (صلاحية مدير النظام فقط)"""
+        if not self._current_user or self._current_user.get("role") != "admin":
+            return {"success": False, "error": "عذراً، هذه العملية مخصصة لمدير النظام فقط"}
+
+        if not emp_ids or not isinstance(emp_ids, list):
+            return {"success": False, "error": "يرجى تحديد سجل واحد على الأقل للحذف"}
+
+        try:
+            cleaned_ids = [int(i) for i in emp_ids if str(i).isdigit() or isinstance(i, int)]
+            if not cleaned_ids:
+                return {"success": False, "error": "قائمة المعرفات المحددة غير صالحة"}
+
+            deleted_count = self._db.delete_employees_batch(cleaned_ids)
+            if deleted_count > 0:
+                return {
+                    "success": True,
+                    "deleted_count": deleted_count,
+                    "message": f"تم حذف عدد ({deleted_count}) سجل نهائياً من قاعدة البيانات"
+                }
+            return {"success": False, "error": "لم يتم العثور على أي سجلات لحذفها"}
+        except Exception as e:
+            return {"success": False, "error": f"تعذر إتمام الحذف الجماعي: {str(e)}"}
+
     # ==================== إدارة الحقول الديناميكية والحالات ====================
 
     def get_all_fields(self) -> Dict[str, Any]:

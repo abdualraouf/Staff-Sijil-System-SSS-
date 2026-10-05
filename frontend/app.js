@@ -80,6 +80,31 @@ function closeModal(modalId) {
   if (modal) modal.classList.remove("active");
 }
 
+function closeTopActiveModal() {
+  const activeModals = Array.from(document.querySelectorAll(".modal-overlay.active"));
+  if (activeModals.length === 0) return false;
+
+  // استبعاد نافذة تسجيل الدخول إذا لم يسجل المستخدم دخوله بعد
+  const dismissableModals = activeModals.filter(m => {
+    if (m.id === "modal-login" && !state.currentUser) return false;
+    return true;
+  });
+
+  if (dismissableModals.length === 0) return false;
+
+  // جلب آخر نافذة نشطة تم فتحها (الأعلى في شجرة العرض)
+  const topModal = dismissableModals[dismissableModals.length - 1];
+
+  if (topModal.id === "modal-confirm") {
+    state.pendingDeleteId = null;
+    customConfirmCallback = null;
+    closeModal("modal-confirm");
+  } else {
+    closeModal(topModal.id);
+  }
+  return true;
+}
+
 // ربط أزرار الإغلاق التلقائية للنوافذ
 document.addEventListener("click", (e) => {
   const closeBtn = e.target.closest("[data-close]");
@@ -119,8 +144,17 @@ document.addEventListener("copy", (e) => {
   }
 });
 
-// حظر اختصارات المتصفح العشوائية (F5 / Ctrl+R / Ctrl+U) وتوجيه أمر الطباعة
+// حظر اختصارات المتصفح العشوائية (F5 / Ctrl+R / Ctrl+U) وتوجيه أمر الطباعة وإغلاق النوافذ بـ Escape
 document.addEventListener("keydown", (e) => {
+  // إغلاق أعلى نافذة منبثقة نشطة عند الضغط على مفتاح الهروب Escape
+  if (e.key === "Escape" || e.key === "Esc") {
+    const closed = closeTopActiveModal();
+    if (closed) {
+      e.preventDefault();
+      return;
+    }
+  }
+
   // حظر F5 وحظر Ctrl+R / Ctrl+Shift+R (إعادة التحميل المفاجئ وفقدان الجلسة)
   if (e.key === "F5" || (e.ctrlKey && (e.key === "r" || e.key === "R"))) {
     e.preventDefault();
@@ -310,10 +344,12 @@ async function handleLogin() {
       roleTag.innerText = "مدير النظام";
       roleTag.className = "role-tag admin";
       document.querySelectorAll(".admin-only").forEach(el => el.style.display = "");
+      document.querySelectorAll(".staff-only").forEach(el => el.style.display = "none");
     } else {
       roleTag.innerText = "موظف إدخال";
       roleTag.className = "role-tag staff";
       document.querySelectorAll(".admin-only").forEach(el => el.style.display = "none");
+      document.querySelectorAll(".staff-only").forEach(el => el.style.display = "");
     }
 
     showToast(`أهلاً بك يا ${state.currentUser.display_name}`);
@@ -410,17 +446,12 @@ function renderEmployeesTable() {
       <td>${emp.education_level || "-"}</td>
       <td style="text-align: center;">
         <div class="table-actions" style="justify-content: center;">
-          <button class="btn btn-sm btn-outline" onclick="openEditEmployeeModal(${emp.id})" title="عرض وتعديل البيانات">
+          <button class="btn btn-sm btn-outline" onclick="openEditEmployeeModal(${emp.id})" title="عرض وتعديل كافة بيانات الموظف بما فيها الحالة الوظيفية">
             ✏️ تعديل
           </button>
-          
-          <select class="input-control" style="height: 32px; padding: 0 6px; font-size: 12px; width: 100px;" onchange="handleRoutineStatusChange(${emp.id}, this.value)">
-            <option value="" disabled selected>الحالة...</option>
-            ${state.statuses.map(s => `<option value="${s.id}" ${s.id === emp.status_id ? "selected" : ""}>${s.name}</option>`).join("")}
-          </select>
 
           ${isAdmin ? `
-            <button class="btn btn-sm btn-red" onclick="promptPermanentDelete(${emp.id}, '${emp.full_name}')" title="حذف نهائي من قاعدة البيانات">
+            <button class="btn btn-sm btn-red" onclick="promptPermanentDelete(${emp.id}, '${escapeHtml(emp.full_name)}')" title="حذف نهائي من قاعدة البيانات">
               🗑️
             </button>
           ` : ""}
@@ -475,6 +506,18 @@ function updateSelectedCounter() {
   const badge = document.getElementById("selected-count-badge");
   if (badge) {
     badge.innerText = `المحدد: ${count} موظف`;
+  }
+
+  // إظهار وتحديث زر الحذف الجماعي لمدير النظام عند وجود تحديد
+  const btnDeleteSelected = document.getElementById("btn-delete-selected");
+  if (btnDeleteSelected) {
+    const isAdmin = state.currentUser && state.currentUser.role === "admin";
+    if (isAdmin && count > 0) {
+      btnDeleteSelected.style.display = "inline-flex";
+      btnDeleteSelected.innerHTML = `<span>🗑️</span><span>حذف المحدد (${count})</span>`;
+    } else {
+      btnDeleteSelected.style.display = "none";
+    }
   }
 
   const selectAll = document.getElementById("select-all-checkbox");
@@ -726,6 +769,40 @@ document.getElementById("btn-confirm-cancel").addEventListener("click", () => {
   closeModal("modal-confirm");
 });
 
+// زر الحذف الجماعي للسجلات المحددة (صلاحية مدير النظام فقط)
+const btnDeleteSelected = document.getElementById("btn-delete-selected");
+if (btnDeleteSelected) {
+  btnDeleteSelected.addEventListener("click", () => {
+    const count = state.selectedEmployeeIds.size;
+    if (count === 0) {
+      showAlert("يرجى تحديد سجل واحد على الأقل لحذفه.");
+      return;
+    }
+
+    if (!state.currentUser || state.currentUser.role !== "admin") {
+      showAlert("عذراً، عملية حذف السجلات مخصصة لمدير النظام فقط");
+      return;
+    }
+
+    const selectedIds = Array.from(state.selectedEmployeeIds);
+    showCustomConfirm(
+      "تحذير: حذف جماعي نهائي",
+      `تحذير أمني: أنت على وشك حذف عدد (${count}) سجل نهائياً من قاعدة البيانات.\n\nهل أنت متأكد من رغبتك في المتابعة؟ لن يمكن التراجع عن هذا الإجراء إلا باسترجاع نسخة احتياطية.`,
+      async () => {
+        const api = getAPI();
+        const res = await api.delete_employees_batch(selectedIds);
+        if (res.success) {
+          showToast(res.message || `تم حذف (${res.deleted_count || count}) سجل بنجاح`);
+          state.selectedEmployeeIds.clear();
+          await loadEmployees();
+        } else {
+          showAlert(res.error || "تعذر إتمام الحذف الجماعي");
+        }
+      }
+    );
+  });
+}
+
 // ==================== الطباعة وتصدير Word ====================
 
 document.getElementById("btn-open-print").addEventListener("click", () => {
@@ -950,9 +1027,9 @@ document.getElementById("btn-do-word-export").addEventListener("click", async ()
   }
 });
 
-// ==================== تصدير واستيراد الإكسل ====================
+// ==================== معالجات تصدير واستيراد الإكسل ====================
 
-document.getElementById("btn-export-excel").addEventListener("click", async () => {
+async function handleExcelExportAction() {
   const name = document.getElementById("search-name").value.trim();
   const nationalId = document.getElementById("search-national-id").value.trim();
   const statusId = document.getElementById("filter-status").value;
@@ -963,16 +1040,25 @@ document.getElementById("btn-export-excel").addEventListener("click", async () =
 
   if (res.success) {
     showToast(res.message || "تم تصدير ملف الإكسل بنجاح");
+    closeModal("modal-data-hub");
   } else if (!res.cancelled) {
     showAlert(res.error || "تعذر تصدير ملف الإكسل");
   }
-});
+}
+
+const btnOldExportExcel = document.getElementById("btn-export-excel");
+if (btnOldExportExcel) {
+  btnOldExportExcel.addEventListener("click", handleExcelExportAction);
+}
 
 // معالج استيراد الإكسل (خطوة بخطوة)
-document.getElementById("btn-import-excel").addEventListener("click", () => {
-  resetImportWizard();
-  openModal("modal-excel-import");
-});
+const btnOldImportExcel = document.getElementById("btn-import-excel");
+if (btnOldImportExcel) {
+  btnOldImportExcel.addEventListener("click", () => {
+    resetImportWizard();
+    openModal("modal-excel-import");
+  });
+}
 
 function resetImportWizard() {
   state.importSession = {
@@ -1097,33 +1183,170 @@ async function commitImport() {
   }
 }
 
-// ==================== النسخ الاحتياطي والاسترجاع ====================
+// ==================== مركز إدارة وتصدير البيانات والنسخ الاحتياطي (Data Hub) ====================
 
-document.getElementById("btn-backup-db").addEventListener("click", async () => {
-  const api = getAPI();
-  const res = await api.backup_database();
-  if (res.success) {
-    showToast(res.message || "تم حفظ النسخة الاحتياطية بنجاح");
-  } else if (!res.cancelled) {
-    showAlert(res.error || "فشل إنشاء النسخة الاحتياطية");
+function switchDataHubTab(tabName) {
+  const isExport = tabName === "export";
+  const contentExport = document.getElementById("hub-tab-content-export");
+  const contentImport = document.getElementById("hub-tab-content-import");
+  const btnExport = document.getElementById("hub-tab-btn-export");
+  const btnImport = document.getElementById("hub-tab-btn-import");
+
+  if (contentExport) contentExport.style.display = isExport ? "flex" : "none";
+  if (contentImport) contentImport.style.display = isExport ? "none" : "flex";
+
+  if (btnExport) btnExport.className = isExport ? "btn btn-sm btn-blue" : "btn btn-sm btn-outline";
+  if (btnImport) btnImport.className = isExport ? "btn btn-sm btn-outline" : "btn btn-sm btn-blue";
+}
+
+function openDataHubModal() {
+  const isAdmin = state.currentUser?.role === "admin";
+
+  // تحديث نص تلميح التصدير بناءً على حالة التحديد الحالية
+  const hintEl = document.getElementById("hub-export-target-hint");
+  if (hintEl) {
+    if (state.selectedEmployeeIds.size > 0) {
+      hintEl.innerText = `المستهدف بالتصدير: السجلات المحددة حالياً (${state.selectedEmployeeIds.size} موظف)`;
+    } else {
+      hintEl.innerText = `المستهدف بالتصدير: كافة نتائج البحث المعروضة (${state.employees.length} موظف)`;
+    }
   }
-});
 
-document.getElementById("btn-restore-db").addEventListener("click", async () => {
-  const api = getAPI();
-  const res = await api.restore_database();
-  if (res.success) {
-    showToast(res.message || "تم استرجاع النسخة الاحتياطية بنجاح");
-    // إعادة تحميل البيانات وتحديث الواجهة مباشرة
-    await reloadSystemData();
-  } else if (!res.cancelled) {
-    showAlert(res.error || "تعذر استرجاع النسخة الاحتياطية");
-  }
-});
+  // ضبط ظهور بطاقات الاستيراد والاسترجاع بحسب الصلاحيات
+  document.querySelectorAll("#modal-data-hub .admin-only").forEach(el => {
+    el.style.display = isAdmin ? "" : "none";
+  });
+  document.querySelectorAll("#modal-data-hub .staff-only").forEach(el => {
+    el.style.display = isAdmin ? "none" : "block";
+  });
 
-// ==================== إدارة الحقول والحالات (Settings) ====================
+  switchDataHubTab("export");
+  openModal("modal-data-hub");
+}
+
+const btnOpenDataHub = document.getElementById("btn-open-data-hub");
+if (btnOpenDataHub) {
+  btnOpenDataHub.addEventListener("click", openDataHubModal);
+}
+
+const hubTabBtnExport = document.getElementById("hub-tab-btn-export");
+if (hubTabBtnExport) {
+  hubTabBtnExport.addEventListener("click", () => switchDataHubTab("export"));
+}
+
+const hubTabBtnImport = document.getElementById("hub-tab-btn-import");
+if (hubTabBtnImport) {
+  hubTabBtnImport.addEventListener("click", () => switchDataHubTab("import"));
+}
+
+// أزرار العمليات داخل مركز البيانات الموحد
+const btnHubExportExcel = document.getElementById("btn-hub-export-excel");
+if (btnHubExportExcel) {
+  btnHubExportExcel.addEventListener("click", handleExcelExportAction);
+}
+
+const btnHubExportWord = document.getElementById("btn-hub-export-word");
+if (btnHubExportWord) {
+  btnHubExportWord.addEventListener("click", () => {
+    // إذا لم يكن هناك تحديد، تحديد كافة الموظفين المعروضين تلقائياً لتسهيل العمل على المستخدم
+    if (state.selectedEmployeeIds.size === 0) {
+      if (state.employees.length === 0) {
+        showAlert("لا توجد سجلات حالية لتصديرها كملف وورد");
+        return;
+      }
+      state.employees.forEach(emp => state.selectedEmployeeIds.add(emp.id));
+      updateSelectedCounter();
+      syncSelectAllCheckbox();
+      showToast(`تم تحديد كافة السجلات المعروضة (${state.employees.length}) تلقائياً لتصدير الوورد`, "info");
+    }
+    closeModal("modal-data-hub");
+    openModal("modal-print-setup");
+  });
+}
+
+const btnHubBackupDb = document.getElementById("btn-hub-backup-db");
+if (btnHubBackupDb) {
+  btnHubBackupDb.addEventListener("click", async () => {
+    if (state.currentUser?.role !== "admin") {
+      showAlert("أخذ النسخ الاحتياطية مخصص لمدير النظام فقط");
+      return;
+    }
+    const api = getAPI();
+    const res = await api.backup_database();
+    if (res.success) {
+      showToast(res.message || "تم حفظ النسخة الاحتياطية بنجاح");
+      closeModal("modal-data-hub");
+    } else if (!res.cancelled) {
+      showAlert(res.error || "فشل إنشاء النسخة الاحتياطية");
+    }
+  });
+}
+
+const btnHubImportExcel = document.getElementById("btn-hub-import-excel");
+if (btnHubImportExcel) {
+  btnHubImportExcel.addEventListener("click", () => {
+    if (state.currentUser?.role !== "admin") {
+      showAlert("استيراد السجلات مخصص لمدير النظام فقط");
+      return;
+    }
+    closeModal("modal-data-hub");
+    resetImportWizard();
+    openModal("modal-excel-import");
+  });
+}
+
+const btnHubRestoreDb = document.getElementById("btn-hub-restore-db");
+if (btnHubRestoreDb) {
+  btnHubRestoreDb.addEventListener("click", async () => {
+    if (state.currentUser?.role !== "admin") {
+      showAlert("استرجاع النسخ الاحتياطية مخصص لمدير النظام فقط");
+      return;
+    }
+    const api = getAPI();
+    const res = await api.restore_database();
+    if (res.success) {
+      showToast(res.message || "تم استرجاع النسخة الاحتياطية بنجاح");
+      closeModal("modal-data-hub");
+      await reloadSystemData();
+    } else if (!res.cancelled) {
+      showAlert(res.error || "تعذر استرجاع النسخة الاحتياطية");
+    }
+  });
+}
+
+// مواءمة الأزرار القديمة (توافقية)
+const btnOldBackupDb = document.getElementById("btn-backup-db");
+if (btnOldBackupDb) {
+  btnOldBackupDb.addEventListener("click", async () => {
+    const api = getAPI();
+    const res = await api.backup_database();
+    if (res.success) showToast(res.message || "تم حفظ النسخة الاحتياطية بنجاح");
+    else if (!res.cancelled) showAlert(res.error || "فشل إنشاء النسخة الاحتياطية");
+  });
+}
+
+const btnOldRestoreDb = document.getElementById("btn-restore-db");
+if (btnOldRestoreDb) {
+  btnOldRestoreDb.addEventListener("click", async () => {
+    const api = getAPI();
+    const res = await api.restore_database();
+    if (res.success) {
+      showToast(res.message || "تم استرجاع النسخة الاحتياطية بنجاح");
+      await reloadSystemData();
+    } else if (!res.cancelled) showAlert(res.error || "تعذر استرجاع النسخة الاحتياطية");
+  });
+}
+
+// ==================== إدارة إعدادات النظام الموحدة (Settings & Users) ====================
 
 function switchToSettingsTab(tabName) {
+  const isAdmin = state.currentUser?.role === "admin";
+
+  // حماية صارمة: منع غير المديرين من الوصول لتبويب إدارة المستخدمين
+  if (tabName === "users" && !isAdmin) {
+    tabName = "fields";
+  }
+
   const isFields = tabName === "fields";
   const isStatuses = tabName === "statuses";
   const isUsers = tabName === "users";
@@ -1142,34 +1365,57 @@ function switchToSettingsTab(tabName) {
 
   if (btnFields) btnFields.className = isFields ? "btn btn-sm btn-blue" : "btn btn-sm btn-outline";
   if (btnStatuses) btnStatuses.className = isStatuses ? "btn btn-sm btn-blue" : "btn btn-sm btn-outline";
-  if (btnUsers) btnUsers.className = isUsers ? "btn btn-sm btn-blue" : "btn btn-sm btn-outline";
+  if (btnUsers) {
+    btnUsers.className = isUsers ? "btn btn-sm btn-blue" : "btn btn-sm btn-outline";
+    btnUsers.style.display = isAdmin ? "" : "none";
+  }
 }
 
-document.getElementById("btn-open-settings").addEventListener("click", () => {
-  switchToSettingsTab("fields");
-  loadSettingsData();
-  openModal("modal-settings");
-});
+const btnOpenSettings = document.getElementById("btn-open-settings");
+if (btnOpenSettings) {
+  btnOpenSettings.addEventListener("click", () => {
+    const isAdmin = state.currentUser?.role === "admin";
+    // المدير يدخل على تبويب المستخدمين أولاً، والموظف العادي يدخل على الحقول
+    const defaultTab = isAdmin ? "users" : "fields";
+    switchToSettingsTab(defaultTab);
+    loadSettingsData();
+    openModal("modal-settings");
+  });
+}
 
 const btnOpenUsers = document.getElementById("btn-open-users");
 if (btnOpenUsers) {
   btnOpenUsers.addEventListener("click", () => {
+    if (state.currentUser?.role !== "admin") return;
     switchToSettingsTab("users");
     loadSettingsData();
     openModal("modal-settings");
   });
 }
 
-document.getElementById("tab-btn-fields").addEventListener("click", () => switchToSettingsTab("fields"));
-document.getElementById("tab-btn-statuses").addEventListener("click", () => switchToSettingsTab("statuses"));
-document.getElementById("tab-btn-users").addEventListener("click", () => switchToSettingsTab("users"));
+const tabBtnFields = document.getElementById("tab-btn-fields");
+if (tabBtnFields) {
+  tabBtnFields.addEventListener("click", () => switchToSettingsTab("fields"));
+}
+
+const tabBtnStatuses = document.getElementById("tab-btn-statuses");
+if (tabBtnStatuses) {
+  tabBtnStatuses.addEventListener("click", () => switchToSettingsTab("statuses"));
+}
+
+const tabBtnUsers = document.getElementById("tab-btn-users");
+if (tabBtnUsers) {
+  tabBtnUsers.addEventListener("click", () => switchToSettingsTab("users"));
+}
 
 async function loadSettingsData() {
   const api = getAPI();
+  const isAdmin = state.currentUser?.role === "admin";
+
   const [fieldsRes, statusesRes, usersRes] = await Promise.all([
     api.get_all_fields(),
     api.get_all_statuses(),
-    api.get_users_management ? api.get_users_management() : Promise.resolve({ success: false })
+    (isAdmin && api.get_users_management) ? api.get_users_management() : Promise.resolve({ success: false })
   ]);
 
   if (fieldsRes.success) {
@@ -1180,7 +1426,7 @@ async function loadSettingsData() {
     state.allStatuses = statusesRes.statuses || [];
     renderSettingsStatuses();
   }
-  if (usersRes.success) {
+  if (usersRes.success && isAdmin) {
     state.allUsers = usersRes.users || [];
     renderSettingsUsers();
   }

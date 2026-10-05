@@ -284,8 +284,19 @@ def run_tests():
         assert "مدير" in str(ve)
         print("  [+] تم منع حذف آخر مدير نظام بنجاح لحماية المنظومة من الإغلاق غير القابل للإدارة")
 
+    # 11. اختبار الحذف الجماعي للسجلات (Batch Delete)
+    print("\n11. اختبار الحذف الجماعي للسجلات (Batch Delete):")
+    b1_res = db.save_employee({"national_id": "999000111222", "full_name": "موظف اختبار حذف 1", "status_id": 1})
+    b2_res = db.save_employee({"national_id": "999000111333", "full_name": "موظف اختبار حذف 2", "status_id": 1})
+    b1_id, b2_id = b1_res["id"], b2_res["id"]
+    batch_count = db.delete_employees_batch([b1_id, b2_id])
+    assert batch_count == 2
+    assert db.get_employee(b1_id) is None
+    assert db.get_employee(b2_id) is None
+    print(f"  [+] تم تنفيذ الحذف الجماعي بنجاح: تم حذف ({batch_count}) سجل دفعة واحدة")
+
     print("\n========================================================")
-    print("  جميع الاختبارات المنهجية (10/10) تمت بنجاح وبأعلى معايير الجودة!")
+    print("  جميع الاختبارات المنهجية (11/11) تمت بنجاح وبأعلى معايير الجودة!")
     print("========================================================")
 
 if __name__ == "__main__":
