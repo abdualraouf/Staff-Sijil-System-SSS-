@@ -283,16 +283,14 @@ function populateLoginUsers() {
 // تعبئة الحالات في شريط البحث واستمارة الإضافة
 function populateStatusDropdowns() {
   const filterSelect = document.getElementById("filter-status");
-  filterSelect.innerHTML = '<option value="all">-- كافة الحالات --</option>';
+  filterSelect.innerHTML = '<option value="all" selected>-- كافة الحالات --</option>';
   state.statuses.forEach(s => {
     const opt = document.createElement("option");
     opt.value = s.id;
     opt.textContent = s.name;
-    if (s.id === state.defaultStatusId) {
-      opt.selected = true; // الحالة الافتراضية "على رأس العمل"
-    }
     filterSelect.appendChild(opt);
   });
+  filterSelect.value = "all";
 
   const empSelect = document.getElementById("emp-status-id");
   empSelect.innerHTML = "";
@@ -374,11 +372,38 @@ document.getElementById("btn-logout").addEventListener("click", async () => {
 
 // ==================== استعراض وبحث الموظفين ====================
 
+// دالة شاملة ومرنة لتصفير كافة فلاتر البحث وإعادتها لحالتها الافتراضية
+function resetAllSearchFilters() {
+  const searchCard = document.querySelector(".search-card");
+  if (!searchCard) {
+    const nameEl = document.getElementById("search-name");
+    const natEl = document.getElementById("search-national-id");
+    const statEl = document.getElementById("filter-status");
+    if (nameEl) nameEl.value = "";
+    if (natEl) natEl.value = "";
+    if (statEl) statEl.value = "all";
+    return;
+  }
+
+  // تصفير كافة حقول الإدخال النصية في شريط البحث
+  searchCard.querySelectorAll("input:not([type='button']):not([type='submit'])").forEach(input => {
+    input.value = "";
+  });
+
+  // إعادة كافة القوائم المنسدلة إلى خيارها الافتراضي (-- كافة الحالات -- وما يماثلها مستقبلاً)
+  searchCard.querySelectorAll("select").forEach(select => {
+    const defaultOpt = Array.from(select.options).find(opt => opt.defaultSelected);
+    if (defaultOpt) {
+      select.value = defaultOpt.value;
+    } else if (select.options.length > 0) {
+      select.selectedIndex = 0;
+    }
+  });
+}
+
 document.getElementById("btn-search").addEventListener("click", () => loadEmployees());
 document.getElementById("btn-reset-filters").addEventListener("click", () => {
-  document.getElementById("search-name").value = "";
-  document.getElementById("search-national-id").value = "";
-  document.getElementById("filter-status").value = state.defaultStatusId || "all";
+  resetAllSearchFilters();
   loadEmployees();
 });
 
