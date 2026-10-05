@@ -21,6 +21,9 @@
     <div class="nav-user-panel" id="nav-user-panel" style="display: none;">
       <!-- أزرار الإدارة الخاصة بمدير النظام فقط -->
       <div class="toolbar-group admin-only" id="admin-nav-actions" style="display: none;">
+        <button class="btn btn-outline btn-sm" id="btn-open-users" style="color: #FFFFFF; border-color: rgba(255,255,255,0.3);">
+          👥 إدارة المستخدمين
+        </button>
         <button class="btn btn-outline btn-sm" id="btn-open-settings" style="color: #FFFFFF; border-color: rgba(255,255,255,0.3);">
           ⚙️ إعدادات الحقول والحالات
         </button>
@@ -145,8 +148,8 @@
 
   <!-- ==================== النوافذ المنبثقة (Modals) ==================== -->
 
-  <!-- 1. نافذة تسجيل الدخول (Login Modal) -->
-  <div class="modal-overlay" id="modal-login">
+  <!-- 1. نافذة تسجيل الدخول (Login Modal) نشطة افتراضياً عند الإقلاع -->
+  <div class="modal-overlay active" id="modal-login">
     <div class="modal-box" style="max-width: 440px;">
       <div class="modal-header">
         <h3>تسجيل الدخول للنظام</h3>
@@ -159,7 +162,8 @@
         <div class="form-group">
           <label for="login-user-select">اسم المستخدم</label>
           <select id="login-user-select" class="input-control">
-            <!-- تعبئة المستخدمين برمجياً -->
+            <option value="1">مدير النظام (مدير النظام)</option>
+            <option value="2">موظف الإدخال (موظف إدخال)</option>
           </select>
         </div>
 
@@ -398,6 +402,7 @@
         <div style="display: flex; gap: 10px; border-bottom: 2px solid var(--color-gray-border); padding-bottom: 10px;">
           <button class="btn btn-sm btn-blue" id="tab-btn-fields">الحقول الديناميكية</button>
           <button class="btn btn-sm btn-outline" id="tab-btn-statuses">الحالات الوظيفية</button>
+          <button class="btn btn-sm btn-outline" id="tab-btn-users">المستخدمون والصلاحيات</button>
         </div>
 
         <!-- محتوى تبويب الحقول الديناميكية -->
@@ -465,6 +470,54 @@
             </thead>
             <tbody id="statuses-table-body">
               <!-- الحالات -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- محتوى تبويب إدارة المستخدمين والصلاحيات -->
+        <div id="tab-content-users" style="display: none;">
+          <div style="background: #F8FAFC; padding: 14px; border-radius: var(--radius-md); border: 1px solid var(--color-gray-border); margin-bottom: 16px;">
+            <h4 style="font-size: 13.5px; margin-bottom: 10px; color: var(--primary-navy);" id="user-form-title">إضافة مستخدم جديد للنظام:</h4>
+            <input type="hidden" id="user-mgmt-id" value="">
+            <div class="form-grid-3">
+              <div class="form-group">
+                <label>اسم المستخدم المعروض</label>
+                <input type="text" id="new-user-name" class="input-control" placeholder="مثال: أحمد عبد الله">
+              </div>
+              <div class="form-group">
+                <label>رمز المرور (PIN)</label>
+                <input type="password" id="new-user-pin" class="input-control" placeholder="أرقام فقط (مثال: 5566)" maxlength="8">
+              </div>
+              <div class="form-group">
+                <label>الدور والصلاحية</label>
+                <select id="new-user-role" class="input-control">
+                  <option value="staff">موظف إدخال (استعراض وإدخال فقط)</option>
+                  <option value="admin">مدير النظام (كامل الصلاحيات والإعدادات)</option>
+                </select>
+              </div>
+            </div>
+            <div style="display: flex; gap: 8px; margin-top: 10px;">
+              <button class="btn btn-green btn-sm" id="btn-add-user-submit">
+                ➕ إضافة المستخدم
+              </button>
+              <button class="btn btn-outline btn-sm" id="btn-cancel-user-edit" style="display: none;">
+                إلغاء التعديل
+              </button>
+            </div>
+          </div>
+
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width: 50px;">المعرف</th>
+                <th>اسم المستخدم</th>
+                <th>الصلاحية</th>
+                <th>رمز PIN</th>
+                <th style="text-align: center; width: 140px;">إجراء</th>
+              </tr>
+            </thead>
+            <tbody id="users-table-body">
+              <!-- المستخدمون -->
             </tbody>
           </table>
         </div>

@@ -13,9 +13,10 @@ if hasattr(sys.stdout, "reconfigure"):
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8")
 
-# إضافة مسار employee_system
+# إضافة مسار المشروع المباشر
 current_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(current_dir, "employee_system"))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
 
 from database import Database
 from file_operations import (
@@ -242,8 +243,49 @@ def run_tests():
     assert restored_emp1["full_name"] == "أحمد محمود حسن المعدل"
     print(f"  [+] تم استرجاع قاعدة البيانات وعودة الموظف المحذوف بنجاح: {restored_emp1['full_name']}")
 
+    # 10. اختبار إدارة مستخدمي النظام والصلاحيات
+    print("\n10. اختبار إدارة مستخدمي النظام والصلاحيات:")
+    users_detailed = db.get_users_detailed()
+    assert len(users_detailed) >= 2
+    print(f"  [+] تم جلب قائمة المستخدمين المفصلة بنجاح: عدد ({len(users_detailed)})")
+
+    # إضافة مستخدم جديد
+    new_user = db.add_user("أحمد علي محمود", "5566", "staff")
+    assert new_user["id"] is not None
+    assert new_user["display_name"] == "أحمد علي محمود"
+    print(f"  [+] تمت إضافة مستخدم جديد بنجاح: المعرف ({new_user['id']})")
+
+    # التحقق من إمكانية تسجيل دخوله
+    auth_u = db.authenticate_user(new_user["id"], "5566")
+    assert auth_u is not None
+    assert auth_u["role"] == "staff"
+    print("  [+] نجحت مصادقة المستخدم الجديد برمز PIN الخاص به")
+
+    # تعديل بيانات المستخدم وترقيته لمدير
+    upd_res = db.update_user(new_user["id"], "أحمد علي محمود (مدير)", "9988", "admin")
+    assert upd_res is True
+    auth_upd = db.authenticate_user(new_user["id"], "9988")
+    assert auth_upd["display_name"] == "أحمد علي محمود (مدير)"
+    assert auth_upd["role"] == "admin"
+    print("  [+] تم تحديث بيانات المستخدم وتعديل رمزه وصلاحيته بنجاح")
+
+    # حذف المستخدم
+    del_res = db.delete_user(new_user["id"])
+    assert del_res is True
+    assert db.authenticate_user(new_user["id"], "9988") is None
+    print("  [+] تم حذف المستخدم التجريبي بنجاح")
+
+    # التحقق من منع حذف آخر مدير نظام
+    try:
+        # البحث عن مدير النظام الافتراضي (المعرف 1)
+        db.delete_user(1)
+        assert False, "كان يجب أن تفشل عملية حذف مدير النظام الوحيد"
+    except ValueError as ve:
+        assert "مدير" in str(ve)
+        print("  [+] تم منع حذف آخر مدير نظام بنجاح لحماية المنظومة من الإغلاق غير القابل للإدارة")
+
     print("\n========================================================")
-    print("  جميع الاختبارات المنهجية (9/9) تمت بنجاح وبأعلى معايير الجودة!")
+    print("  جميع الاختبارات المنهجية (10/10) تمت بنجاح وبأعلى معايير الجودة!")
     print("========================================================")
 
 if __name__ == "__main__":

@@ -24,47 +24,20 @@ const state = {
   }
 };
 
-// واجهة برمجية وهمية للمتصفح العادي في حال الاختبار خارج pywebview
-const mockAPI = {
-  get_initial_data: async () => ({
-    success: true,
-    users: [
-      { id: 1, display_name: "مدير النظام", role: "admin" },
-      { id: 2, display_name: "موظف الإدخال", role: "staff" }
-    ],
-    statuses: [
-      { id: 1, name: "على رأس العمل", is_active: 1 },
-      { id: 2, name: "إجازة خاصة", is_active: 1 },
-      { id: 3, name: "منتدب", is_active: 1 },
-      { id: 4, name: "منقطع", is_active: 1 },
-      { id: 5, name: "متقاعد", is_active: 1 }
-    ],
-    active_fields: []
-  }),
-  login: async (userId, pin) => {
-    if ((userId === 1 && pin === "1234") || (userId === 2 && pin === "0000")) {
-      return { success: true, user: { id: userId, display_name: userId === 1 ? "مدير النظام" : "موظف الإدخال", role: userId === 1 ? "admin" : "staff" } };
-    }
-    return { success: false, error: "رمز المرور غير صحيح" };
-  },
-  logout: async () => ({ success: true }),
-  get_employees: async () => ({ success: true, employees: [] }),
-  check_national_id: async () => ({ success: true, exists: false }),
-  save_employee: async () => ({ success: true, message: "تم الحفظ بنجاح" }),
-  update_employee_status: async () => ({ success: true }),
-  delete_employee_permanent: async () => ({ success: true }),
-  export_excel: async () => ({ success: true, message: "تم التصدير بنجاح" }),
-  export_word: async () => ({ success: true, message: "تم تصدير ملف الوورد بنجاح" }),
-  backup_database: async () => ({ success: true, message: "تم الحفظ بنجاح" }),
-  restore_database: async () => ({ success: true, message: "تم الاسترجاع بنجاح" })
-};
-
 function getAPI() {
-  if (window.pywebview && window.pywebview.api) {
-    return window.pywebview.api;
-  }
-  return mockAPI;
+  return window.pywebview ? window.pywebview.api : null;
 }
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 
 // ==================== أدوات الإشعارات والنوافذ ====================
 
@@ -116,20 +89,72 @@ document.addEventListener("click", (e) => {
   }
 });
 
-// ==================== التهيئة ودورة الحياة ====================
+// ==================== حماية عناصر الواجهة من النسخ والقوائم المنبثقة ====================
 
-window.addEventListener("pywebviewready", initApp);
-window.addEventListener("DOMContentLoaded", () => {
-  // إذا لم يكن pywebview جاهزاً بعد قليل نقوم بالتهيئة
-  setTimeout(() => {
-    if (!state.currentUser && !document.getElementById("modal-login").classList.contains("active")) {
-      initApp();
-    }
-  }, 500);
+// منع القائمة السياقية (Right-Click Context Menu) على الأزرار والقوائم والترويسات
+document.addEventListener("contextmenu", (e) => {
+  // السماح فقط داخل حقول الإدخال النصية ومناطق التحرير لإتاحة اللصق والقص
+  const isTextInput = e.target.closest("input:not([type='checkbox']):not([type='radio']):not([type='button']):not([type='submit']), textarea");
+  if (!isTextInput) {
+    e.preventDefault();
+  }
 });
 
+// منع سحب عناصر الواجهة والأزرار ككائنات متصفح
+document.addEventListener("dragstart", (e) => {
+  if (!e.target.closest("input, textarea")) {
+    e.preventDefault();
+  }
+});
+
+// منع نسخ نصوص الأزرار والقوائم وعناصر التحكم
+document.addEventListener("copy", (e) => {
+  const selection = window.getSelection();
+  if (selection && selection.rangeCount > 0) {
+    const anchor = selection.anchorNode;
+    const el = anchor ? (anchor.nodeType === 1 ? anchor : anchor.parentElement) : null;
+    if (el && el.closest("button, .btn, .top-navbar, .toolbar-card, .search-card, .modal-header, .modal-footer, [id^='tab-btn-'], .status-badge, .role-tag")) {
+      e.preventDefault();
+    }
+  }
+});
+
+// حظر اختصارات المتصفح العشوائية (F5 / Ctrl+R / Ctrl+U) وتوجيه أمر الطباعة
+document.addEventListener("keydown", (e) => {
+  // حظر F5 وحظر Ctrl+R / Ctrl+Shift+R (إعادة التحميل المفاجئ وفقدان الجلسة)
+  if (e.key === "F5" || (e.ctrlKey && (e.key === "r" || e.key === "R"))) {
+    e.preventDefault();
+    return;
+  }
+
+  // حظر Ctrl+U (عرض كود المصدر)
+  if (e.ctrlKey && (e.key === "u" || e.key === "U")) {
+    e.preventDefault();
+    return;
+  }
+
+  // توجيه اختصار الطباعة Ctrl+P لنافذة طباعة المنظومة الرسمية
+  if (e.ctrlKey && (e.key === "p" || e.key === "P")) {
+    e.preventDefault();
+    if (state.currentUser) {
+      document.getElementById("btn-open-print").click();
+    }
+    return;
+  }
+});
+
+// ==================== التهيئة ودورة الحياة ====================
+
+let appInitialized = false;
+
 async function initApp() {
-  const api = getAPI();
+  if (appInitialized) return;
+  const api = window.pywebview ? window.pywebview.api : null;
+  if (!api || typeof api.get_initial_data !== "function") {
+    return false;
+  }
+  appInitialized = true;
+
   try {
     const res = await api.get_initial_data();
     if (res.success) {
@@ -144,13 +169,70 @@ async function initApp() {
       populateLoginUsers();
       populateStatusDropdowns();
       openModal("modal-login");
+      return true;
     } else {
       showAlert(res.error || "تعذر الاتصال بقاعدة البيانات");
     }
   } catch (err) {
     console.error("Init error:", err);
   }
+  return false;
 }
+
+// دالة إعادة تحميل وتحديث كافة بيانات النظام الحية بعد استرجاع نسخة احتياطية أو هجرة بيانات
+async function reloadSystemData() {
+  const api = getAPI();
+  if (!api || typeof api.get_initial_data !== "function") return false;
+
+  try {
+    const res = await api.get_initial_data();
+    if (res.success) {
+      state.users = res.users || [];
+      state.statuses = res.statuses || [];
+      state.activeFields = res.active_fields || [];
+
+      const defaultStatus = state.statuses.find(s => s.name.includes("رأس العمل") || s.name.includes("العمل"));
+      state.defaultStatusId = defaultStatus ? defaultStatus.id : (state.statuses[0]?.id || 1);
+
+      populateLoginUsers();
+      populateStatusDropdowns();
+
+      // إعادة تحميل جدول الموظفين وتفريغ التحديدات
+      state.selectedEmployeeIds.clear();
+      await loadEmployees();
+
+      // إذا كانت نافذة الإعدادات مفتوحة، تحديث بياناتها
+      const settingsModal = document.getElementById("modal-settings");
+      if (settingsModal && settingsModal.classList.contains("active")) {
+        loadSettingsData();
+      }
+      return true;
+    }
+  } catch (err) {
+    console.error("Reload error:", err);
+  }
+  return false;
+}
+
+function tryInit() {
+  if (appInitialized) return;
+  initApp();
+}
+
+window.addEventListener("pywebviewready", tryInit);
+document.addEventListener("DOMContentLoaded", tryInit);
+window.addEventListener("load", tryInit);
+
+// فحص دوري سريع للتأكد من التقاط الجسر البرمجي فور جاهزيته
+const initTimer = setInterval(() => {
+  if (appInitialized) {
+    clearInterval(initTimer);
+  } else {
+    tryInit();
+  }
+}, 50);
+
+setTimeout(() => clearInterval(initTimer), 6000);
 
 // تعبئة قائمة المستخدمين في شاشة الدخول
 function populateLoginUsers() {
@@ -363,7 +445,15 @@ document.getElementById("select-all-checkbox").addEventListener("change", (e) =>
       state.selectedEmployeeIds.delete(emp.id);
     }
   });
-  renderEmployeesTable();
+
+  // تحديث مربعات الاختيار في صفوف الجدول المرئية فوراً دون تأخير
+  document.querySelectorAll(".row-select-checkbox").forEach(cb => {
+    cb.checked = checked;
+    const tr = cb.closest("tr");
+    if (tr) tr.classList.toggle("selected", checked);
+  });
+
+  updateSelectedCounter();
 });
 
 document.addEventListener("change", (e) => {
@@ -383,13 +473,27 @@ document.addEventListener("change", (e) => {
 function updateSelectedCounter() {
   const count = state.selectedEmployeeIds.size;
   const badge = document.getElementById("selected-count-badge");
-  badge.innerText = `المحدد: ${count} موظف`;
+  if (badge) {
+    badge.innerText = `المحدد: ${count} موظف`;
+  }
 
   const selectAll = document.getElementById("select-all-checkbox");
-  if (state.employees.length > 0 && count === state.employees.length) {
+  if (!selectAll) return;
+
+  const totalVisible = state.employees.length;
+  if (totalVisible === 0) {
+    selectAll.checked = false;
+    selectAll.indeterminate = false;
+    return;
+  }
+
+  // حساب عدد الموظفين المعروضين المحددين فعلياً في الجدول الحالي
+  const selectedVisibleCount = state.employees.filter(emp => state.selectedEmployeeIds.has(emp.id)).length;
+
+  if (selectedVisibleCount === totalVisible) {
     selectAll.checked = true;
     selectAll.indeterminate = false;
-  } else if (count > 0) {
+  } else if (selectedVisibleCount > 0) {
     selectAll.checked = false;
     selectAll.indeterminate = true;
   } else {
@@ -573,15 +677,34 @@ async function handleRoutineStatusChange(empId, statusId) {
   }
 }
 
+let customConfirmCallback = null;
+
 function promptPermanentDelete(empId, empName) {
   state.pendingDeleteId = empId;
+  customConfirmCallback = null;
   document.getElementById("confirm-modal-title").innerText = "تحذير: حذف نهائي";
   document.getElementById("confirm-modal-text").innerText =
     `تحذير: سيتم حذف هذا السجل نهائياً من قاعدة البيانات للموظف [${empName}]. هل تريد المتابعة؟`;
   openModal("modal-confirm");
 }
 
+function showCustomConfirm(title, message, onProceed) {
+  state.pendingDeleteId = null;
+  customConfirmCallback = onProceed;
+  document.getElementById("confirm-modal-title").innerText = title;
+  document.getElementById("confirm-modal-text").innerText = message;
+  openModal("modal-confirm");
+}
+
 document.getElementById("btn-confirm-proceed").addEventListener("click", async () => {
+  if (customConfirmCallback) {
+    const cb = customConfirmCallback;
+    customConfirmCallback = null;
+    closeModal("modal-confirm");
+    await cb();
+    return;
+  }
+
   if (!state.pendingDeleteId) return;
   const api = getAPI();
   const res = await api.delete_employee_permanent(state.pendingDeleteId);
@@ -599,6 +722,7 @@ document.getElementById("btn-confirm-proceed").addEventListener("click", async (
 
 document.getElementById("btn-confirm-cancel").addEventListener("click", () => {
   state.pendingDeleteId = null;
+  customConfirmCallback = null;
   closeModal("modal-confirm");
 });
 
@@ -990,8 +1114,8 @@ document.getElementById("btn-restore-db").addEventListener("click", async () => 
   const res = await api.restore_database();
   if (res.success) {
     showToast(res.message || "تم استرجاع النسخة الاحتياطية بنجاح");
-    // إعادة تحميل البيانات
-    initApp();
+    // إعادة تحميل البيانات وتحديث الواجهة مباشرة
+    await reloadSystemData();
   } else if (!res.cancelled) {
     showAlert(res.error || "تعذر استرجاع النسخة الاحتياطية");
   }
@@ -999,30 +1123,53 @@ document.getElementById("btn-restore-db").addEventListener("click", async () => 
 
 // ==================== إدارة الحقول والحالات (Settings) ====================
 
+function switchToSettingsTab(tabName) {
+  const isFields = tabName === "fields";
+  const isStatuses = tabName === "statuses";
+  const isUsers = tabName === "users";
+
+  const contentFields = document.getElementById("tab-content-fields");
+  const contentStatuses = document.getElementById("tab-content-statuses");
+  const contentUsers = document.getElementById("tab-content-users");
+
+  if (contentFields) contentFields.style.display = isFields ? "block" : "none";
+  if (contentStatuses) contentStatuses.style.display = isStatuses ? "block" : "none";
+  if (contentUsers) contentUsers.style.display = isUsers ? "block" : "none";
+
+  const btnFields = document.getElementById("tab-btn-fields");
+  const btnStatuses = document.getElementById("tab-btn-statuses");
+  const btnUsers = document.getElementById("tab-btn-users");
+
+  if (btnFields) btnFields.className = isFields ? "btn btn-sm btn-blue" : "btn btn-sm btn-outline";
+  if (btnStatuses) btnStatuses.className = isStatuses ? "btn btn-sm btn-blue" : "btn btn-sm btn-outline";
+  if (btnUsers) btnUsers.className = isUsers ? "btn btn-sm btn-blue" : "btn btn-sm btn-outline";
+}
+
 document.getElementById("btn-open-settings").addEventListener("click", () => {
+  switchToSettingsTab("fields");
   loadSettingsData();
   openModal("modal-settings");
 });
 
-document.getElementById("tab-btn-fields").addEventListener("click", () => {
-  document.getElementById("tab-content-fields").style.display = "block";
-  document.getElementById("tab-content-statuses").style.display = "none";
-  document.getElementById("tab-btn-fields").className = "btn btn-sm btn-blue";
-  document.getElementById("tab-btn-statuses").className = "btn btn-sm btn-outline";
-});
+const btnOpenUsers = document.getElementById("btn-open-users");
+if (btnOpenUsers) {
+  btnOpenUsers.addEventListener("click", () => {
+    switchToSettingsTab("users");
+    loadSettingsData();
+    openModal("modal-settings");
+  });
+}
 
-document.getElementById("tab-btn-statuses").addEventListener("click", () => {
-  document.getElementById("tab-content-fields").style.display = "none";
-  document.getElementById("tab-content-statuses").style.display = "block";
-  document.getElementById("tab-btn-fields").className = "btn btn-sm btn-outline";
-  document.getElementById("tab-btn-statuses").className = "btn btn-sm btn-blue";
-});
+document.getElementById("tab-btn-fields").addEventListener("click", () => switchToSettingsTab("fields"));
+document.getElementById("tab-btn-statuses").addEventListener("click", () => switchToSettingsTab("statuses"));
+document.getElementById("tab-btn-users").addEventListener("click", () => switchToSettingsTab("users"));
 
 async function loadSettingsData() {
   const api = getAPI();
-  const [fieldsRes, statusesRes] = await Promise.all([
+  const [fieldsRes, statusesRes, usersRes] = await Promise.all([
     api.get_all_fields(),
-    api.get_all_statuses()
+    api.get_all_statuses(),
+    api.get_users_management ? api.get_users_management() : Promise.resolve({ success: false })
   ]);
 
   if (fieldsRes.success) {
@@ -1032,6 +1179,10 @@ async function loadSettingsData() {
   if (statusesRes.success) {
     state.allStatuses = statusesRes.statuses || [];
     renderSettingsStatuses();
+  }
+  if (usersRes.success) {
+    state.allUsers = usersRes.users || [];
+    renderSettingsUsers();
   }
 }
 
@@ -1146,3 +1297,167 @@ window.toggleStatusState = async function(statusId, targetActive) {
     populateStatusDropdowns();
   }
 };
+
+// ==================== إدارة مستخدمي النظام والصلاحيات ====================
+
+function renderSettingsUsers() {
+  const tbody = document.getElementById("users-table-body");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  (state.allUsers || []).forEach(u => {
+    const tr = document.createElement("tr");
+    const roleBadge = u.role === "admin"
+      ? '<span class="status-badge status-active">مدير نظام</span>'
+      : '<span class="status-badge" style="background: #E2E8F0; color: #334155;">موظف إدخال</span>';
+
+    const isCurrent = state.currentUser && state.currentUser.id === u.id;
+    const currentIndicator = isCurrent ? '<span style="font-size: 11px; color: var(--color-blue); margin-right: 6px;">(حسابك الحالي)</span>' : '';
+
+    tr.innerHTML = `
+      <td style="font-family: monospace; text-align: center;">${u.id}</td>
+      <td style="font-weight: 600;">${escapeHtml(u.display_name)} ${currentIndicator}</td>
+      <td>${roleBadge}</td>
+      <td style="font-family: monospace; letter-spacing: 1px;">•••• <span style="font-size: 11px; color: #64748B;">(${escapeHtml(u.pin_code)})</span></td>
+      <td style="text-align: center;">
+        <div style="display: flex; gap: 6px; justify-content: center;">
+          <button class="btn btn-sm btn-outline" onclick="editUserFromSettings(${u.id})">
+            ✏️ تعديل
+          </button>
+          <button class="btn btn-sm btn-red" onclick="deleteUserFromSettings(${u.id}, '${escapeHtml(u.display_name)}')">
+            🗑️ حذف
+          </button>
+        </div>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function resetUserForm() {
+  const idEl = document.getElementById("user-mgmt-id");
+  const nameEl = document.getElementById("new-user-name");
+  const pinEl = document.getElementById("new-user-pin");
+  const roleEl = document.getElementById("new-user-role");
+  const titleEl = document.getElementById("user-form-title");
+  const submitBtn = document.getElementById("btn-add-user-submit");
+  const cancelBtn = document.getElementById("btn-cancel-user-edit");
+
+  if (idEl) idEl.value = "";
+  if (nameEl) nameEl.value = "";
+  if (pinEl) {
+    pinEl.value = "";
+    pinEl.placeholder = "أرقام فقط (مثال: 5566)";
+  }
+  if (roleEl) roleEl.value = "staff";
+  if (titleEl) titleEl.innerText = "إضافة مستخدم جديد للنظام:";
+  if (submitBtn) submitBtn.innerText = "➕ إضافة المستخدم";
+  if (cancelBtn) cancelBtn.style.display = "none";
+}
+
+const cancelUserEditBtn = document.getElementById("btn-cancel-user-edit");
+if (cancelUserEditBtn) {
+  cancelUserEditBtn.addEventListener("click", resetUserForm);
+}
+
+const addUserSubmitBtn = document.getElementById("btn-add-user-submit");
+if (addUserSubmitBtn) {
+  addUserSubmitBtn.addEventListener("click", async () => {
+    const userId = document.getElementById("user-mgmt-id").value;
+    const name = document.getElementById("new-user-name").value.trim();
+    const pin = document.getElementById("new-user-pin").value.trim();
+    const role = document.getElementById("new-user-role").value;
+
+    if (!name) {
+      showAlert("يرجى إدخال اسم المستخدم المعروض");
+      return;
+    }
+
+    if (!userId) {
+      if (!pin || pin.length < 3) {
+        showAlert("يرجى إدخال رمز مرور (PIN) لا يقل عن 3 أرقام للمستخدم الجديد");
+        return;
+      }
+    } else {
+      if (pin && pin.length < 3) {
+        showAlert("رمز المرور الجديد يجب ألا يقل عن 3 أرقام");
+        return;
+      }
+    }
+
+    const payload = {
+      display_name: name,
+      role: role
+    };
+    if (userId) {
+      payload.id = parseInt(userId, 10);
+    }
+    if (pin) {
+      payload.pin_code = pin;
+    }
+
+    const api = getAPI();
+    const res = await api.save_user(payload);
+
+    if (res.success) {
+      showToast(res.message || "تم حفظ بيانات المستخدم بنجاح");
+      resetUserForm();
+      await loadSettingsData();
+
+      // تحديث قائمة الدخول العامة
+      const initRes = await api.get_initial_data();
+      if (initRes.success) {
+        state.users = initRes.users || [];
+        populateLoginUsers();
+      }
+    } else {
+      showAlert(res.error || "تعذر حفظ بيانات المستخدم");
+    }
+  });
+}
+
+window.editUserFromSettings = function(userId) {
+  const user = (state.allUsers || []).find(u => u.id === userId);
+  if (!user) return;
+
+  document.getElementById("user-mgmt-id").value = user.id;
+  document.getElementById("new-user-name").value = user.display_name;
+  document.getElementById("new-user-pin").value = "";
+  document.getElementById("new-user-pin").placeholder = "اتركه فارغاً للإبقاء على الرمز الحالي";
+  document.getElementById("new-user-role").value = user.role;
+
+  document.getElementById("user-form-title").innerText = `تعديل بيانات المستخدم: ${user.display_name}`;
+  document.getElementById("btn-add-user-submit").innerText = "💾 حفظ التعديلات";
+  document.getElementById("btn-cancel-user-edit").style.display = "inline-flex";
+  document.getElementById("new-user-name").focus();
+};
+
+window.deleteUserFromSettings = function(userId, userName) {
+  if (state.currentUser && state.currentUser.id === userId) {
+    showAlert("عذراً، لا يمكنك حذف حسابك الحالي الذي تستخدمه لتسجيل الدخول.");
+    return;
+  }
+
+  showCustomConfirm(
+    "تأكيد حذف المستخدم",
+    `هل أنت متأكد من رغبتك في حذف المستخدم [${userName}] من النظام نهائياً؟`,
+    async () => {
+      const api = getAPI();
+      const res = await api.delete_user(userId);
+      if (res.success) {
+        showToast(res.message || "تم حذف المستخدم بنجاح");
+        resetUserForm();
+        await loadSettingsData();
+
+        const initRes = await api.get_initial_data();
+        if (initRes.success) {
+          state.users = initRes.users || [];
+          populateLoginUsers();
+        }
+      } else {
+        showAlert(res.error || "تعذر إتمام حذف المستخدم");
+      }
+    }
+  );
+};
+

@@ -139,6 +139,79 @@ class Database:
             row = cursor.fetchone()
             return dict(row) if row else None
 
+    def get_users_detailed(self) -> List[Dict[str, Any]]:
+        """جلب قائمة المستخدمين المفصلة لإدارتها من قبل مدير النظام"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, display_name, role, pin_code FROM users ORDER BY id ASC;")
+            return [dict(row) for row in cursor.fetchall()]
+
+    def add_user(self, display_name: str, pin_code: str, role: str = "staff") -> Dict[str, Any]:
+        """إضافة مستخدم جديد للنظام مع التحقق من صحة البيانات"""
+        display_name = display_name.strip()
+        pin_code = str(pin_code).strip()
+        if not display_name:
+            raise ValueError("اسم المستخدم مطلوب")
+        if not pin_code or len(pin_code) < 3:
+            raise ValueError("رمز المرور (PIN) يجب ألا يقل عن 3 أرقام")
+        if role not in ("admin", "staff"):
+            role = "staff"
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO users (display_name, pin_code, role) VALUES (?, ?, ?);",
+                (display_name, pin_code, role)
+            )
+            new_id = cursor.lastrowid
+            conn.commit()
+            return {"id": new_id, "display_name": display_name, "role": role}
+
+    def update_user(self, user_id: int, display_name: str, pin_code: Optional[str] = None, role: str = "staff") -> bool:
+        """تحديث بيانات مستخدم حالي"""
+        display_name = display_name.strip()
+        if not display_name:
+            raise ValueError("اسم المستخدم مطلوب")
+        if role not in ("admin", "staff"):
+            role = "staff"
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            if pin_code and str(pin_code).strip():
+                clean_pin = str(pin_code).strip()
+                cursor.execute(
+                    "UPDATE users SET display_name = ?, pin_code = ?, role = ? WHERE id = ?;",
+                    (display_name, clean_pin, role, user_id)
+                )
+            else:
+                cursor.execute(
+                    "UPDATE users SET display_name = ?, role = ? WHERE id = ?;",
+                    (display_name, role, user_id)
+                )
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def delete_user(self, user_id: int) -> bool:
+        """حذف مستخدم من النظام مع منع حذف آخر مدير نظام"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            # فحص ما إذا كان المستخدم المستهدف مديراً
+            cursor.execute("SELECT role FROM users WHERE id = ?;", (user_id,))
+            target = cursor.fetchone()
+            if not target:
+                raise ValueError("المستخدم غير موجود")
+
+            if target["role"] == "admin":
+                # التأكد من وجود مدير آخر على الأقل
+                cursor.execute("SELECT COUNT(*) FROM users WHERE role = 'admin';")
+                admin_count = cursor.fetchone()[0]
+                if admin_count <= 1:
+                    raise ValueError("لا يمكن حذف مدير النظام الوحيد؛ يجب أن يبقى مدير نظام واحد على الأقل")
+
+            cursor.execute("DELETE FROM users WHERE id = ?;", (user_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+
     # ==================== إدارة الحالات والحقول الديناميكية ====================
 
     def get_statuses(self, active_only: bool = False) -> List[Dict[str, Any]]:

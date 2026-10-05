@@ -48,21 +48,21 @@ class AppAPI:
     """
 
     def __init__(self, db: Database):
-        self.db = db
-        self.window: Optional[webview.Window] = None
-        self.current_user: Optional[Dict[str, Any]] = None
+        self._db = db
+        self._window: Optional[webview.Window] = None
+        self._current_user: Optional[Dict[str, Any]] = None
 
-    def set_window(self, window: webview.Window):
-        self.window = window
+    def _set_window(self, window: webview.Window):
+        self._window = window
 
     # ==================== التهيئة والمصادقة ====================
 
     def get_initial_data(self) -> Dict[str, Any]:
         """جلب البيانات الأساسية لبدء تشغيل التطبيق (قائمة المستخدمين والحالات والحقول النشطة)"""
         try:
-            users = self.db.get_users()
-            statuses = self.db.get_statuses(active_only=True)
-            active_fields = self.db.get_fields(active_only=True)
+            users = self._db.get_users()
+            statuses = self._db.get_statuses(active_only=True)
+            active_fields = self._db.get_fields(active_only=True)
             return {
                 "success": True,
                 "users": users,
@@ -75,9 +75,9 @@ class AppAPI:
     def login(self, user_id: int, pin_code: str) -> Dict[str, Any]:
         """تسجيل الدخول والتحقق من رمز PIN للمستخدم"""
         try:
-            user = self.db.authenticate_user(user_id, pin_code)
+            user = self._db.authenticate_user(user_id, pin_code)
             if user:
-                self.current_user = user
+                self._current_user = user
                 return {"success": True, "user": user}
             return {"success": False, "error": "رمز المرور (PIN) غير صحيح"}
         except Exception as e:
@@ -85,12 +85,12 @@ class AppAPI:
 
     def logout(self) -> Dict[str, Any]:
         """تسجيل الخروج وإنهاء الجلسة الحالية"""
-        self.current_user = None
+        self._current_user = None
         return {"success": True}
 
     def get_current_user(self) -> Optional[Dict[str, Any]]:
         """الحصول على بيانات المستخدم المسجل حالياً"""
-        return self.current_user
+        return self._current_user
 
     # ==================== إدارة الموظفين ====================
 
@@ -109,7 +109,7 @@ class AppAPI:
                 except ValueError:
                     pass
 
-            employees = self.db.get_employees(
+            employees = self._db.get_employees(
                 search_name=search_name,
                 search_national_id=search_national_id,
                 status_id=status_filter
@@ -121,7 +121,7 @@ class AppAPI:
     def get_employee(self, emp_id: int) -> Dict[str, Any]:
         """جلب تفاصيل موظف محدد"""
         try:
-            emp = self.db.get_employee(emp_id)
+            emp = self._db.get_employee(emp_id)
             if emp:
                 return {"success": True, "employee": emp}
             return {"success": False, "error": "لم يتم العثور على الموظف المطلوب"}
@@ -131,7 +131,7 @@ class AppAPI:
     def check_national_id(self, national_id: str, exclude_id: Optional[int] = None) -> Dict[str, Any]:
         """التحقق السريع والفوري من تكرار الرقم الوطني (يستدعى عند blur)"""
         try:
-            exists, existing = self.db.check_national_id_exists(national_id, exclude_id)
+            exists, existing = self._db.check_national_id_exists(national_id, exclude_id)
             return {
                 "success": True,
                 "exists": exists,
@@ -143,7 +143,7 @@ class AppAPI:
     def save_employee(self, data: Dict[str, Any], custom_values: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """إضافة أو تعديل موظف مع الحقول المخصصة"""
         try:
-            result = self.db.save_employee(data, custom_values)
+            result = self._db.save_employee(data, custom_values)
             return {"success": True, "employee": result, "message": "تم حفظ بيانات الموظف بنجاح"}
         except ValueError as ve:
             return {"success": False, "error": str(ve)}
@@ -153,7 +153,7 @@ class AppAPI:
     def update_employee_status(self, emp_id: int, status_id: int) -> Dict[str, Any]:
         """تحديث الحالة الوظيفية للموظف (كالحذف الروتيني بالتحويل لمنقطع أو متقاعد)"""
         try:
-            success = self.db.update_employee_status(emp_id, status_id)
+            success = self._db.update_employee_status(emp_id, status_id)
             if success:
                 return {"success": True, "message": "تم تحديث حالة الموظف بنجاح"}
             return {"success": False, "error": "تعذر تحديث الحالة"}
@@ -162,11 +162,11 @@ class AppAPI:
 
     def delete_employee_permanent(self, emp_id: int) -> Dict[str, Any]:
         """الحذف النهائي من قاعدة البيانات (صلاحية مدير النظام فقط)"""
-        if not self.current_user or self.current_user.get("role") != "admin":
+        if not self._current_user or self._current_user.get("role") != "admin":
             return {"success": False, "error": "عذراً، هذه العملية مخصصة لمدير النظام فقط"}
 
         try:
-            success = self.db.delete_employee_permanent(emp_id)
+            success = self._db.delete_employee_permanent(emp_id)
             if success:
                 return {"success": True, "message": "تم حذف السجل نهائياً من قاعدة البيانات"}
             return {"success": False, "error": "لم يتم العثور على السجل لحذفه"}
@@ -178,29 +178,29 @@ class AppAPI:
     def get_all_fields(self) -> Dict[str, Any]:
         """جلب كافة الحقول الديناميكية لإدارتها"""
         try:
-            fields = self.db.get_fields(active_only=False)
+            fields = self._db.get_fields(active_only=False)
             return {"success": True, "fields": fields}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
     def save_field(self, field_key: str, label: str, display_order: int = 0) -> Dict[str, Any]:
         """إضافة حقل ديناميكي جديد (مدير النظام فقط)"""
-        if not self.current_user or self.current_user.get("role") != "admin":
+        if not self._current_user or self._current_user.get("role") != "admin":
             return {"success": False, "error": "عذراً، هذه العملية مخصصة لمدير النظام فقط"}
 
         try:
-            new_field = self.db.add_field(field_key, label, display_order)
+            new_field = self._db.add_field(field_key, label, display_order)
             return {"success": True, "field": new_field, "message": "تمت إضافة الحقل الجديد بنجاح"}
         except Exception as e:
             return {"success": False, "error": f"تعذر إضافة الحقل: {str(e)}"}
 
     def toggle_field(self, field_id: int, is_active: int) -> Dict[str, Any]:
         """تفعيل أو إلغاء تفعيل حقل ديناميكي"""
-        if not self.current_user or self.current_user.get("role") != "admin":
+        if not self._current_user or self._current_user.get("role") != "admin":
             return {"success": False, "error": "عذراً، هذه العملية مخصصة لمدير النظام فقط"}
 
         try:
-            success = self.db.toggle_field(field_id, is_active)
+            success = self._db.toggle_field(field_id, is_active)
             return {"success": success}
         except Exception as e:
             return {"success": False, "error": str(e)}
@@ -208,32 +208,83 @@ class AppAPI:
     def get_all_statuses(self) -> Dict[str, Any]:
         """جلب جميع الحالات الوظيفية"""
         try:
-            statuses = self.db.get_statuses(active_only=False)
+            statuses = self._db.get_statuses(active_only=False)
             return {"success": True, "statuses": statuses}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
     def save_status(self, name: str) -> Dict[str, Any]:
         """إضافة حالة وظيفية جديدة"""
-        if not self.current_user or self.current_user.get("role") != "admin":
+        if not self._current_user or self._current_user.get("role") != "admin":
             return {"success": False, "error": "عذراً، هذه العملية مخصصة لمدير النظام فقط"}
 
         try:
-            res = self.db.add_status(name)
+            res = self._db.add_status(name)
             return {"success": True, "status": res, "message": "تمت إضافة الحالة بنجاح"}
         except Exception as e:
             return {"success": False, "error": f"تعذر إضافة الحالة: {str(e)}"}
 
     def toggle_status(self, status_id: int, is_active: int) -> Dict[str, Any]:
         """تفعيل أو تعطيل حالة وظيفية"""
-        if not self.current_user or self.current_user.get("role") != "admin":
+        if not self._current_user or self._current_user.get("role") != "admin":
             return {"success": False, "error": "عذراً، هذه العملية مخصصة لمدير النظام فقط"}
 
         try:
-            success = self.db.toggle_status(status_id, is_active)
+            success = self._db.toggle_status(status_id, is_active)
             return {"success": success}
         except Exception as e:
             return {"success": False, "error": str(e)}
+
+    # ==================== إدارة مستخدمي النظام والصلاحيات ====================
+
+    def get_users_management(self) -> Dict[str, Any]:
+        """جلب قائمة المستخدمين المفصلة مع الصلاحيات (مدير النظام فقط)"""
+        if not self._current_user or self._current_user.get("role") != "admin":
+            return {"success": False, "error": "عذراً، هذه العملية مخصصة لمدير النظام فقط"}
+
+        try:
+            users = self._db.get_users_detailed()
+            return {"success": True, "users": users}
+        except Exception as e:
+            return {"success": False, "error": f"تعذر جلب قائمة المستخدمين: {str(e)}"}
+
+    def save_user(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """إضافة أو تعديل مستخدم (مدير النظام فقط)"""
+        if not self._current_user or self._current_user.get("role") != "admin":
+            return {"success": False, "error": "عذراً، هذه العملية مخصصة لمدير النظام فقط"}
+
+        user_id = data.get("id")
+        display_name = str(data.get("display_name", "")).strip()
+        pin_code = str(data.get("pin_code", "")).strip()
+        role = str(data.get("role", "staff")).strip()
+
+        try:
+            if user_id:
+                self._db.update_user(int(user_id), display_name, pin_code if pin_code else None, role)
+                return {"success": True, "message": "تم تحديث بيانات المستخدم بنجاح"}
+            else:
+                new_u = self._db.add_user(display_name, pin_code, role)
+                return {"success": True, "user": new_u, "message": "تمت إضافة المستخدم الجديد بنجاح"}
+        except ValueError as ve:
+            return {"success": False, "error": str(ve)}
+        except Exception as e:
+            return {"success": False, "error": f"حدث خطأ أثناء حفظ المستخدم: {str(e)}"}
+
+    def delete_user(self, user_id: int) -> Dict[str, Any]:
+        """حذف مستخدم من النظام (مدير النظام فقط)"""
+        if not self._current_user or self._current_user.get("role") != "admin":
+            return {"success": False, "error": "عذراً، هذه العملية مخصصة لمدير النظام فقط"}
+
+        if self._current_user.get("id") == int(user_id):
+            return {"success": False, "error": "لا يمكنك حذف حسابك الحالي الذي قمت بتسجيل الدخول به"}
+
+        try:
+            self._db.delete_user(int(user_id))
+            return {"success": True, "message": "تم حذف المستخدم بنجاح"}
+        except ValueError as ve:
+            return {"success": False, "error": str(ve)}
+        except Exception as e:
+            return {"success": False, "error": f"تعذر حذف المستخدم: {str(e)}"}
 
     # ==================== تصدير واستيراد الإكسل ====================
 
@@ -245,7 +296,7 @@ class AppAPI:
         selected_ids: Optional[List[int]] = None
     ) -> Dict[str, Any]:
         """تصدير الموظفين المفلترين أو المحددين إلى ملف إكسل بعد فتح نافذة الحفظ للمستخدم"""
-        if not self.window:
+        if not self._window:
             return {"success": False, "error": "نافذة النظام غير متاحة"}
 
         try:
@@ -253,7 +304,7 @@ class AppAPI:
             timestamp = datetime.now().strftime("%Y-%m-%d_%H%M")
             default_filename = f"سجل_الموظفين_{timestamp}.xlsx"
             file_types = ("ملفات إكسل (*.xlsx)", "جميع الملفات (*.*)")
-            save_path = self.window.create_file_dialog(
+            save_path = self._window.create_file_dialog(
                 webview.SAVE_DIALOG,
                 save_filename=default_filename,
                 file_types=file_types
@@ -276,7 +327,7 @@ class AppAPI:
                 except ValueError:
                     pass
 
-            employees = self.db.get_employees(
+            employees = self._db.get_employees(
                 search_name=search_name,
                 search_national_id=search_national_id,
                 status_id=status_filter
@@ -286,7 +337,7 @@ class AppAPI:
                 selected_set = set(selected_ids)
                 employees = [e for e in employees if e["id"] in selected_set]
 
-            active_fields = self.db.get_fields(active_only=True)
+            active_fields = self._db.get_fields(active_only=True)
             export_employees_to_excel(employees, active_fields, save_path)
 
             return {
@@ -300,12 +351,12 @@ class AppAPI:
         """
         فتح متصفح الملفات لاختيار ملف إكسل وإجراء فحص التحقق الصارم واكتشاف التعارضات
         """
-        if not self.window:
+        if not self._window:
             return {"success": False, "error": "نافذة النظام غير متاحة"}
 
         try:
             file_types = ("ملفات إكسل (*.xlsx)",)
-            selected_files = self.window.create_file_dialog(
+            selected_files = self._window.create_file_dialog(
                 webview.OPEN_DIALOG,
                 allow_multiple=False,
                 file_types=file_types
@@ -317,7 +368,7 @@ class AppAPI:
             file_path = selected_files[0] if isinstance(selected_files, (list, tuple)) else selected_files
 
             # تشغيل الفحص والتحقق
-            validation_result = parse_and_validate_excel_file(file_path, self.db)
+            validation_result = parse_and_validate_excel_file(file_path, self._db)
             validation_result["file_path"] = file_path
             return validation_result
 
@@ -331,7 +382,7 @@ class AppAPI:
     ) -> Dict[str, Any]:
         """تنفيذ حفظ بيانات الاستيراد المعتمدة بعد معالجة خيارات التعارض"""
         try:
-            result = execute_import_commit(new_records, resolved_conflicts, self.db)
+            result = execute_import_commit(new_records, resolved_conflicts, self._db)
             return result
         except Exception as e:
             return {"success": False, "error": f"تعذر تنفيذ الاستيراد: {str(e)}"}
@@ -345,7 +396,7 @@ class AppAPI:
         selected_fields: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """تصدير الموظفين المحددين إلى مستند وورد منسق (بطاقات مستقلة أو كشف جدولي)"""
-        if not self.window:
+        if not self._window:
             return {"success": False, "error": "نافذة النظام غير متاحة"}
 
         if not selected_ids:
@@ -359,7 +410,7 @@ class AppAPI:
                 default_filename = f"كشف_الموظفين_{timestamp}.docx"
 
             file_types = ("مستندات وورد (*.docx)", "جميع الملفات (*.*)")
-            save_path = self.window.create_file_dialog(
+            save_path = self._window.create_file_dialog(
                 webview.SAVE_DIALOG,
                 save_filename=default_filename,
                 file_types=file_types
@@ -375,13 +426,13 @@ class AppAPI:
                 save_path += ".docx"
 
             # جلب بيانات الموظفين المحددين
-            all_employees = self.db.get_employees()
+            all_employees = self._db.get_employees()
             selected_set = set(selected_ids)
             chosen_employees = [e for e in all_employees if e["id"] in selected_set]
             # ترتيب الموظفين حسب التحديد
             chosen_employees.sort(key=lambda x: selected_ids.index(x["id"]) if x["id"] in selected_ids else 0)
 
-            active_fields = self.db.get_fields(active_only=True)
+            active_fields = self._db.get_fields(active_only=True)
 
             if report_type == "cards":
                 export_word_employee_cards(chosen_employees, active_fields, selected_fields, save_path)
@@ -399,10 +450,10 @@ class AppAPI:
 
     def backup_database(self) -> Dict[str, Any]:
         """أخذ نسخة احتياطية من قاعدة البيانات وحفظها في المسار المختار (مدير النظام)"""
-        if not self.current_user or self.current_user.get("role") != "admin":
+        if not self._current_user or self._current_user.get("role") != "admin":
             return {"success": False, "error": "عذراً، هذه العملية مخصصة لمدير النظام فقط"}
 
-        if not self.window:
+        if not self._window:
             return {"success": False, "error": "نافذة النظام غير متاحة"}
 
         try:
@@ -410,7 +461,7 @@ class AppAPI:
             default_filename = f"backup_employees_{today_str}.db"
             file_types = ("ملفات قاعدة البيانات (*.db)", "جميع الملفات (*.*)")
 
-            dest_path = self.window.create_file_dialog(
+            dest_path = self._window.create_file_dialog(
                 webview.SAVE_DIALOG,
                 save_filename=default_filename,
                 file_types=file_types
@@ -422,22 +473,22 @@ class AppAPI:
             if isinstance(dest_path, (list, tuple)):
                 dest_path = dest_path[0]
 
-            res = backup_database_to_file(self.db.db_path, dest_path)
+            res = backup_database_to_file(self._db.db_path, dest_path)
             return res
         except Exception as e:
             return {"success": False, "error": f"فشل إنشاء النسخة الاحتياطية: {str(e)}"}
 
     def restore_database(self) -> Dict[str, Any]:
         """استرجاع قاعدة البيانات من ملف خارجي بعد فحص سلامة الهيكل (مدير النظام)"""
-        if not self.current_user or self.current_user.get("role") != "admin":
+        if not self._current_user or self._current_user.get("role") != "admin":
             return {"success": False, "error": "عذراً، هذه العملية مخصصة لمدير النظام فقط"}
 
-        if not self.window:
+        if not self._window:
             return {"success": False, "error": "نافذة النظام غير متاحة"}
 
         try:
             file_types = ("ملفات قاعدة البيانات (*.db)",)
-            selected_files = self.window.create_file_dialog(
+            selected_files = self._window.create_file_dialog(
                 webview.OPEN_DIALOG,
                 allow_multiple=False,
                 file_types=file_types
@@ -448,10 +499,10 @@ class AppAPI:
 
             source_path = selected_files[0] if isinstance(selected_files, (list, tuple)) else selected_files
 
-            res = restore_database_from_file(source_path, self.db.db_path)
+            res = restore_database_from_file(source_path, self._db.db_path)
             if res.get("success"):
                 # إعادة تهيئة الاتصال بعد الاسترجاع
-                self.db.init_db()
+                self._db.init_db()
             return res
         except Exception as e:
             return {"success": False, "error": f"فشل استرجاع قاعدة البيانات: {str(e)}"}
@@ -470,16 +521,14 @@ def main():
     frontend_dir = get_frontend_dir()
     index_html = os.path.join(frontend_dir, "index.html")
 
-    if not os.path.exists(index_html):
-        # مسار بديل إذا تم التشغيل من مجلد جذر المشروع
-        alt_html = os.path.join(base_dir, "employee_system", "frontend", "index.html")
-        if os.path.exists(alt_html):
-            index_html = alt_html
+    # استخدام مسار URI المعياري بدقة (file:///C:/...) لمنع أي تأخير في معالجة WebView2
+    from pathlib import Path
+    html_uri = Path(index_html).resolve().as_uri()
 
     # إنشاء النافذة المكتبية مع تفعيل Edge WebView2
     window = webview.create_window(
         title="نظام سجل الموظفين المحمول (SSS)",
-        url=f"file://{os.path.abspath(index_html)}",
+        url=html_uri,
         js_api=api,
         width=1280,
         height=840,
@@ -488,7 +537,7 @@ def main():
         text_select=True
     )
 
-    api.set_window(window)
+    api._set_window(window)
 
     # بدء دورة حياة واجهة المستخدم (تستخدم Edge WebView2 تلقائياً على ويندوز)
     webview.start(debug=False)
