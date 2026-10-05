@@ -66,12 +66,46 @@ def run_tests():
     print("  [+] نجحت عمليات المصادقة والتحقق من رمز PIN")
 
     # 3. اختبار الحقول الديناميكية
-    print("\n3. اختبار إدارة الحقول الديناميكية:")
-    f1 = db.add_field("phone", "رقم الهاتف المحمول", display_order=1)
-    f2 = db.add_field("address", "عنوان السكن", display_order=2)
+    print("\n3. اختبار إدارة الحقول وتحديد الخصائص والحماية:")
+    f1 = db.add_field("phone", "رقم الهاتف المحمول", display_order=10)
+    f2 = db.add_field("address", "عنوان السكن", display_order=11)
     active_fields = db.get_fields(active_only=True)
-    assert len(active_fields) == 2
-    print(f"  [+] تمت إضافة الحقول الديناميكية بنجاح: {[f['label'] for f in active_fields]}")
+    assert len(active_fields) == 11, f"Expected 11 active fields, got {len(active_fields)}"
+    print(f"  [+] إجمالي الحقول النشطة (9 أساسية + 2 مخصصة): {[f['label'] for f in active_fields]}")
+
+    # فحص حماية الحقول الأساسية (الرقم الوطني والاسم الكامل) من الحذف والتعطيل
+    all_f = {f["field_key"]: f["id"] for f in active_fields}
+    nat_id_field = all_f["national_id"]
+    name_field = all_f["full_name"]
+
+    try:
+        db.delete_field(nat_id_field)
+        assert False, "حذف الرقم الوطني يجب أن يفشل"
+    except ValueError as ve:
+        print(f"  [+] تم منع حذف حقل الرقم الوطني بنجاح: {ve}")
+
+    try:
+        db.delete_field(name_field)
+        assert False, "حذف الاسم الكامل يجب أن يفشل"
+    except ValueError as ve:
+        print(f"  [+] تم منع حذف حقل الاسم الكامل بنجاح: {ve}")
+
+    try:
+        db.toggle_field(nat_id_field, 0)
+        assert False, "تعطيل الرقم الوطني يجب أن يفشل"
+    except ValueError as ve:
+        print(f"  [+] تم منع تعطيل حقل الرقم الوطني بنجاح: {ve}")
+
+    # اختبار تعديل خصائص حقل وقيمته الافتراضية وترتيبه
+    status_field_id = all_f["status_id"]
+    db.save_field({
+        "id": status_field_id,
+        "label": "الحالة الوظيفية",
+        "data_type": "select",
+        "default_value": "1",
+        "display_order": 3
+    })
+    print("  [+] تم تحديث خصائص وقيمة الحالة الافتراضية بنجاح")
 
     # 4. اختبار إضافة الموظفين والتحقق من الرقم الوطني
     print("\n4. اختبار إضافة موظف والتحقق من منع تكرار الرقم الوطني:")

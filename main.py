@@ -207,19 +207,41 @@ class AppAPI:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def save_field(self, field_key: str, label: str, display_order: int = 0) -> Dict[str, Any]:
-        """إضافة حقل ديناميكي جديد (مدير النظام فقط)"""
+    def save_field(self, field_data: Any, label: str = None, display_order: int = 0) -> Dict[str, Any]:
+        """إضافة أو تحديث خصائص حقل ديناميكي (مدير النظام فقط)"""
         if not self._current_user or self._current_user.get("role") != "admin":
             return {"success": False, "error": "عذراً، هذه العملية مخصصة لمدير النظام فقط"}
 
         try:
-            new_field = self._db.add_field(field_key, label, display_order)
-            return {"success": True, "field": new_field, "message": "تمت إضافة الحقل الجديد بنجاح"}
+            if isinstance(field_data, dict):
+                saved = self._db.save_field(field_data)
+                return {"success": True, "field": saved, "message": "تم حفظ إعدادات الحقل بنجاح"}
+            else:
+                payload = {
+                    "field_key": str(field_data),
+                    "label": label or str(field_data),
+                    "display_order": display_order
+                }
+                saved = self._db.save_field(payload)
+                return {"success": True, "field": saved, "message": "تم حفظ الحقل بنجاح"}
         except Exception as e:
-            return {"success": False, "error": f"تعذر إضافة الحقل: {str(e)}"}
+            return {"success": False, "error": f"تعذر حفظ الحقل: {str(e)}"}
+
+    def delete_field(self, field_id: int) -> Dict[str, Any]:
+        """حذف حقل ديناميكي مع منع حذف الحقول الأساسية المحمية (مدير النظام فقط)"""
+        if not self._current_user or self._current_user.get("role") != "admin":
+            return {"success": False, "error": "عذراً، هذه العملية مخصصة لمدير النظام فقط"}
+
+        try:
+            success = self._db.delete_field(field_id)
+            if success:
+                return {"success": True, "message": "تم حذف الحقل بنجاح"}
+            return {"success": False, "error": "الحقل المطلوب غير موجود أو تعذر حذفه"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
 
     def toggle_field(self, field_id: int, is_active: int) -> Dict[str, Any]:
-        """تفعيل أو إلغاء تفعيل حقل ديناميكي"""
+        """تفعيل أو إلغاء تفعيل حقل ديناميكي مع حماية الحقول الأساسية (مدير النظام فقط)"""
         if not self._current_user or self._current_user.get("role") != "admin":
             return {"success": False, "error": "عذراً، هذه العملية مخصصة لمدير النظام فقط"}
 
@@ -549,6 +571,9 @@ def main():
     from pathlib import Path
     html_uri = Path(index_html).resolve().as_uri()
 
+    # تعطيل تسريع العتاد المتعثر في WebView2 على بعض كروت الشاشة لمنع الشاشة السوداء
+    os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "--disable-gpu --disable-gpu-compositing"
+
     # إنشاء النافذة المكتبية مع تفعيل Edge WebView2
     window = webview.create_window(
         title="نظام سجل الموظفين المحمول (SSS)",
@@ -557,7 +582,7 @@ def main():
         width=1280,
         height=840,
         min_size=(1024, 700),
-        background_color="#0F172A",
+        background_color="#FFFFFF",
         text_select=True
     )
 

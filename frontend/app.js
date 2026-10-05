@@ -196,12 +196,18 @@ async function initApp() {
       state.statuses = res.statuses || [];
       state.activeFields = res.active_fields || [];
       
-      // العثور على معرف الحالة الافتراضية "على رأس العمل"
-      const defaultStatus = state.statuses.find(s => s.name.includes("رأس العمل") || s.name.includes("العمل"));
-      state.defaultStatusId = defaultStatus ? defaultStatus.id : (state.statuses[0]?.id || 1);
+      // تعيين الحالة الافتراضية بناءً على إعدادات حقل status_id أو المسمى
+      const statusFieldDef = state.activeFields.find(f => f.field_key === "status_id");
+      if (statusFieldDef && statusFieldDef.default_value && state.statuses.some(s => String(s.id) === String(statusFieldDef.default_value))) {
+        state.defaultStatusId = parseInt(statusFieldDef.default_value, 10);
+      } else {
+        const defaultStatus = state.statuses.find(s => s.name.includes("رأس العمل") || s.name.includes("العمل"));
+        state.defaultStatusId = defaultStatus ? defaultStatus.id : (state.statuses[0]?.id || 1);
+      }
 
       populateLoginUsers();
       populateStatusDropdowns();
+      renderEmployeesTableHeader();
       openModal("modal-login");
       return true;
     } else {
@@ -225,11 +231,17 @@ async function reloadSystemData() {
       state.statuses = res.statuses || [];
       state.activeFields = res.active_fields || [];
 
-      const defaultStatus = state.statuses.find(s => s.name.includes("رأس العمل") || s.name.includes("العمل"));
-      state.defaultStatusId = defaultStatus ? defaultStatus.id : (state.statuses[0]?.id || 1);
+      const statusFieldDef = state.activeFields.find(f => f.field_key === "status_id");
+      if (statusFieldDef && statusFieldDef.default_value && state.statuses.some(s => String(s.id) === String(statusFieldDef.default_value))) {
+        state.defaultStatusId = parseInt(statusFieldDef.default_value, 10);
+      } else {
+        const defaultStatus = state.statuses.find(s => s.name.includes("رأس العمل") || s.name.includes("العمل"));
+        state.defaultStatusId = defaultStatus ? defaultStatus.id : (state.statuses[0]?.id || 1);
+      }
 
       populateLoginUsers();
       populateStatusDropdowns();
+      renderEmployeesTableHeader();
 
       // إعادة تحميل جدول الموظفين وتفريغ التحديدات
       state.selectedEmployeeIds.clear();
@@ -438,7 +450,72 @@ function getStatusBadgeClass(statusName) {
   return "status-active";
 }
 
+function getVisibleColumns() {
+  if (!state.activeFields || state.activeFields.length === 0) {
+    return [
+      { field_key: "national_id", label: "الرقم الوطني" },
+      { field_key: "full_name", label: "الاسم الكامل" },
+      { field_key: "status_id", label: "الحالة الوظيفية" },
+      { field_key: "department", label: "القسم / الإدارة" },
+      { field_key: "current_grade", label: "الدرجة الحالية" },
+      { field_key: "education_level", label: "المؤهل العلمي" }
+    ];
+  }
+  return state.activeFields.slice(0, 6);
+}
+
+function syncSelectAllCheckbox() {
+  const selectAll = document.getElementById("select-all-checkbox");
+  if (!selectAll) return;
+
+  const totalVisible = state.employees.length;
+  if (totalVisible === 0) {
+    selectAll.checked = false;
+    selectAll.indeterminate = false;
+    return;
+  }
+
+  const selectedVisibleCount = state.employees.filter(emp => state.selectedEmployeeIds.has(emp.id)).length;
+
+  if (selectedVisibleCount === totalVisible) {
+    selectAll.checked = true;
+    selectAll.indeterminate = false;
+  } else if (selectedVisibleCount > 0) {
+    selectAll.checked = false;
+    selectAll.indeterminate = true;
+  } else {
+    selectAll.checked = false;
+    selectAll.indeterminate = false;
+  }
+}
+
+function renderEmployeesTableHeader() {
+  const thead = document.getElementById("employees-table-head");
+  if (!thead) return;
+
+  const cols = getVisibleColumns();
+  let html = `
+    <tr>
+      <th style="width: 44px; text-align: center;">
+        <input type="checkbox" id="select-all-checkbox" class="table-checkbox" title="تحديد الكل">
+      </th>
+  `;
+
+  cols.forEach(col => {
+    html += `<th>${escapeHtml(col.label)}</th>`;
+  });
+
+  html += `
+      <th style="text-align: center; width: 140px;">الإجراءات</th>
+    </tr>
+  `;
+
+  thead.innerHTML = html;
+  syncSelectAllCheckbox();
+}
+
 function renderEmployeesTable() {
+  renderEmployeesTableHeader();
   const tbody = document.getElementById("employees-table-body");
   const emptyState = document.getElementById("table-empty-state");
   tbody.innerHTML = "";
@@ -451,24 +528,38 @@ function renderEmployeesTable() {
 
   emptyState.style.display = "none";
   const isAdmin = state.currentUser && state.currentUser.role === "admin";
+  const cols = getVisibleColumns();
 
   state.employees.forEach(emp => {
     const isSelected = state.selectedEmployeeIds.has(emp.id);
     const tr = document.createElement("tr");
     if (isSelected) tr.classList.add("selected");
 
-    const statusBadge = `<span class="status-badge ${getStatusBadgeClass(emp.status_name)}">${emp.status_name || "على رأس العمل"}</span>`;
-
-    tr.innerHTML = `
+    let rowHtml = `
       <td style="text-align: center;">
         <input type="checkbox" class="table-checkbox row-select-checkbox" data-id="${emp.id}" ${isSelected ? "checked" : ""}>
       </td>
-      <td style="font-weight: 700; font-family: monospace; font-size: 14px;">${emp.national_id}</td>
-      <td style="font-weight: 600; color: #1E293B;">${emp.full_name}</td>
-      <td>${statusBadge}</td>
-      <td>${emp.department || "-"}</td>
-      <td>${emp.current_grade || "-"}</td>
-      <td>${emp.education_level || "-"}</td>
+    `;
+
+    cols.forEach(col => {
+      const key = col.field_key;
+      if (key === "status_id") {
+        const statusBadge = `<span class="status-badge ${getStatusBadgeClass(emp.status_name)}">${escapeHtml(emp.status_name || "على رأس العمل")}</span>`;
+        rowHtml += `<td>${statusBadge}</td>`;
+      } else if (key === "national_id") {
+        rowHtml += `<td style="font-weight: 700; font-family: monospace; font-size: 14px;">${escapeHtml(emp.national_id || "-")}</td>`;
+      } else if (key === "full_name") {
+        rowHtml += `<td style="font-weight: 600; color: #1E293B;">${escapeHtml(emp.full_name || "-")}</td>`;
+      } else {
+        const rawVal = emp[key] !== undefined && emp[key] !== null && String(emp[key]).trim() !== ""
+          ? emp[key]
+          : (emp.custom_values && emp.custom_values[key] !== undefined ? emp.custom_values[key] : "");
+        const displayVal = (rawVal !== "" && rawVal !== null && rawVal !== undefined) ? rawVal : "-";
+        rowHtml += `<td>${escapeHtml(displayVal)}</td>`;
+      }
+    });
+
+    rowHtml += `
       <td style="text-align: center;">
         <div class="table-actions" style="justify-content: center;">
           <button class="btn btn-sm btn-outline" onclick="openEditEmployeeModal(${emp.id})" title="عرض وتعديل كافة بيانات الموظف بما فيها الحالة الوظيفية">
@@ -484,6 +575,7 @@ function renderEmployeesTable() {
       </td>
     `;
 
+    tr.innerHTML = rowHtml;
     tbody.appendChild(tr);
   });
 
@@ -492,27 +584,28 @@ function renderEmployeesTable() {
 
 // ==================== إدارة التحديد المتعدد ====================
 
-document.getElementById("select-all-checkbox").addEventListener("change", (e) => {
-  const checked = e.target.checked;
-  state.employees.forEach(emp => {
-    if (checked) {
-      state.selectedEmployeeIds.add(emp.id);
-    } else {
-      state.selectedEmployeeIds.delete(emp.id);
-    }
-  });
-
-  // تحديث مربعات الاختيار في صفوف الجدول المرئية فوراً دون تأخير
-  document.querySelectorAll(".row-select-checkbox").forEach(cb => {
-    cb.checked = checked;
-    const tr = cb.closest("tr");
-    if (tr) tr.classList.toggle("selected", checked);
-  });
-
-  updateSelectedCounter();
-});
-
 document.addEventListener("change", (e) => {
+  if (e.target.id === "select-all-checkbox") {
+    const checked = e.target.checked;
+    state.employees.forEach(emp => {
+      if (checked) {
+        state.selectedEmployeeIds.add(emp.id);
+      } else {
+        state.selectedEmployeeIds.delete(emp.id);
+      }
+    });
+
+    // تحديث مربعات الاختيار في صفوف الجدول المرئية فوراً دون تأخير
+    document.querySelectorAll(".row-select-checkbox").forEach(cb => {
+      cb.checked = checked;
+      const tr = cb.closest("tr");
+      if (tr) tr.classList.toggle("selected", checked);
+    });
+
+    updateSelectedCounter();
+    return;
+  }
+
   if (e.target.classList.contains("row-select-checkbox")) {
     const empId = parseInt(e.target.getAttribute("data-id"), 10);
     if (e.target.checked) {
@@ -582,18 +675,39 @@ function openAddEmployeeModal() {
   document.getElementById("emp-id").value = "";
   document.getElementById("emp-national-id").value = "";
   document.getElementById("emp-full-name").value = "";
-  document.getElementById("emp-status-id").value = state.defaultStatusId || (state.statuses[0]?.id || "");
-  document.getElementById("emp-hire-date").value = "";
-  document.getElementById("emp-department").value = "";
-  document.getElementById("emp-current-grade").value = "";
-  document.getElementById("emp-grade-date").value = "";
-  document.getElementById("emp-education-level").value = "";
-  document.getElementById("emp-specialization").value = "";
+
+  // تعيين الحالة الافتراضية المحددة في خصائص الحقل
+  const statusDef = state.activeFields.find(f => f.field_key === "status_id");
+  let defaultStatusVal = state.defaultStatusId;
+  if (statusDef && statusDef.default_value) {
+    const parsed = parseInt(statusDef.default_value, 10);
+    if (!isNaN(parsed) && state.statuses.some(s => s.id === parsed)) {
+      defaultStatusVal = parsed;
+    }
+  }
+  document.getElementById("emp-status-id").value = defaultStatusVal || (state.statuses[0]?.id || "");
+
+  // تعبئة القيم الافتراضية للحقول الأساسية الأخرى إذا تم تحديدها
+  const coreMap = {
+    "hire_date": "emp-hire-date",
+    "department": "emp-department",
+    "current_grade": "emp-current-grade",
+    "grade_date": "emp-grade-date",
+    "education_level": "emp-education-level",
+    "specialization": "emp-specialization"
+  };
+  Object.entries(coreMap).forEach(([fKey, inputId]) => {
+    const el = document.getElementById(inputId);
+    if (el) {
+      const fDef = state.activeFields.find(f => f.field_key === fKey);
+      el.value = (fDef && fDef.default_value) ? fDef.default_value : "";
+    }
+  });
 
   document.getElementById("emp-national-id-warning").classList.remove("visible");
   document.getElementById("btn-save-employee").disabled = false;
 
-  renderDynamicFieldsInForm({});
+  renderDynamicFieldsInForm({}, true);
   openModal("modal-employee-form");
   document.getElementById("emp-national-id").focus();
 }
@@ -620,31 +734,67 @@ async function openEditEmployeeModal(empId) {
     document.getElementById("emp-national-id-warning").classList.remove("visible");
     document.getElementById("btn-save-employee").disabled = false;
 
-    renderDynamicFieldsInForm(emp.custom_values || {});
+    renderDynamicFieldsInForm(emp.custom_values || {}, false);
     openModal("modal-employee-form");
   } else {
     showToast("تعذر جلب تفاصيل الموظف", "error");
   }
 }
 
-function renderDynamicFieldsInForm(valuesMap) {
+function renderDynamicFieldsInForm(valuesMap, isNew = false) {
   const container = document.getElementById("dynamic-fields-container");
   const section = document.getElementById("dynamic-fields-section");
   container.innerHTML = "";
 
-  if (!state.activeFields || state.activeFields.length === 0) {
+  const coreKeys = new Set([
+    "national_id", "full_name", "status_id", "hire_date", 
+    "department", "current_grade", "grade_date", "education_level", "specialization"
+  ]);
+
+  const customFields = (state.activeFields || []).filter(f => !coreKeys.has(f.field_key));
+
+  if (customFields.length === 0) {
     section.style.display = "none";
     return;
   }
 
   section.style.display = "block";
-  state.activeFields.forEach(f => {
+  customFields.forEach(f => {
     const div = document.createElement("div");
     div.className = "form-group";
-    const val = valuesMap[f.field_key] || "";
+    const rawVal = valuesMap[f.field_key];
+    const val = (rawVal !== undefined && rawVal !== null) ? rawVal : (isNew ? (f.default_value || "") : "");
+
+    let inputHtml = "";
+    if (f.data_type === "select") {
+      const opts = (f.options || "").split(/[\n,،]/).map(o => o.trim()).filter(Boolean);
+      let optionsMarkup = `<option value="">-- اختر ${escapeHtml(f.label)} --</option>`;
+      opts.forEach(opt => {
+        const isSel = (opt === String(val).trim()) ? "selected" : "";
+        optionsMarkup += `<option value="${escapeHtml(opt)}" ${isSel}>${escapeHtml(opt)}</option>`;
+      });
+      inputHtml = `
+        <select id="custom-field-${f.field_key}" class="input-control custom-field-input" data-key="${f.field_key}">
+          ${optionsMarkup}
+        </select>
+      `;
+    } else if (f.data_type === "number") {
+      inputHtml = `
+        <input type="number" id="custom-field-${f.field_key}" class="input-control custom-field-input" data-key="${f.field_key}" value="${escapeHtml(val)}" ${f.min_length ? `minlength="${f.min_length}"` : ""} ${f.max_length ? `maxlength="${f.max_length}"` : ""}>
+      `;
+    } else if (f.data_type === "date") {
+      inputHtml = `
+        <input type="date" id="custom-field-${f.field_key}" class="input-control custom-field-input" data-key="${f.field_key}" value="${escapeHtml(val)}">
+      `;
+    } else {
+      inputHtml = `
+        <input type="text" id="custom-field-${f.field_key}" class="input-control custom-field-input" data-key="${f.field_key}" value="${escapeHtml(val)}" ${f.min_length ? `minlength="${f.min_length}"` : ""} ${f.max_length ? `maxlength="${f.max_length}"` : ""}>
+      `;
+    }
+
     div.innerHTML = `
-      <label for="custom-field-${f.field_key}">${f.label}</label>
-      <input type="text" id="custom-field-${f.field_key}" class="input-control custom-field-input" data-key="${f.field_key}" value="${val}">
+      <label for="custom-field-${f.field_key}">${escapeHtml(f.label)}</label>
+      ${inputHtml}
     `;
     container.appendChild(div);
   });
@@ -718,6 +868,25 @@ document.getElementById("btn-save-employee").addEventListener("click", async () 
     const key = inp.getAttribute("data-key");
     customValues[key] = inp.value.trim();
   });
+
+  // التحقق من قيود الحد الأدنى والأقصى للحقول المحددة في النظام
+  const allFieldValues = { ...empData, ...customValues };
+  for (const f of state.activeFields) {
+    const val = allFieldValues[f.field_key];
+    if (val !== undefined && val !== null) {
+      const valStr = String(val).trim();
+      if (valStr.length > 0) {
+        if (f.min_length !== null && f.min_length !== undefined && valStr.length < f.min_length) {
+          showAlert(`قيمة حقل [${f.label}] يجب ألا تقل عن (${f.min_length}) حرف/رقم`);
+          return;
+        }
+        if (f.max_length !== null && f.max_length !== undefined && valStr.length > f.max_length) {
+          showAlert(`قيمة حقل [${f.label}] يجب ألا تزيد عن (${f.max_length}) حرف/رقم`);
+          return;
+        }
+      }
+    }
+  }
 
   const api = getAPI();
   const res = await api.save_employee(empData, customValues);
@@ -1373,23 +1542,18 @@ function switchToSettingsTab(tabName) {
   }
 
   const isFields = tabName === "fields";
-  const isStatuses = tabName === "statuses";
   const isUsers = tabName === "users";
 
   const contentFields = document.getElementById("tab-content-fields");
-  const contentStatuses = document.getElementById("tab-content-statuses");
   const contentUsers = document.getElementById("tab-content-users");
 
   if (contentFields) contentFields.style.display = isFields ? "block" : "none";
-  if (contentStatuses) contentStatuses.style.display = isStatuses ? "block" : "none";
   if (contentUsers) contentUsers.style.display = isUsers ? "block" : "none";
 
   const btnFields = document.getElementById("tab-btn-fields");
-  const btnStatuses = document.getElementById("tab-btn-statuses");
   const btnUsers = document.getElementById("tab-btn-users");
 
   if (btnFields) btnFields.className = isFields ? "btn btn-sm btn-blue" : "btn btn-sm btn-outline";
-  if (btnStatuses) btnStatuses.className = isStatuses ? "btn btn-sm btn-blue" : "btn btn-sm btn-outline";
   if (btnUsers) {
     btnUsers.className = isUsers ? "btn btn-sm btn-blue" : "btn btn-sm btn-outline";
     btnUsers.style.display = isAdmin ? "" : "none";
@@ -1400,7 +1564,7 @@ const btnOpenSettings = document.getElementById("btn-open-settings");
 if (btnOpenSettings) {
   btnOpenSettings.addEventListener("click", () => {
     const isAdmin = state.currentUser?.role === "admin";
-    // المدير يدخل على تبويب المستخدمين أولاً، والموظف العادي يدخل على الحقول
+    // المدير يدخل على تبويب المستخدمين أولاً، والموظف العادي يدخل على إدارة الحقول
     const defaultTab = isAdmin ? "users" : "fields";
     switchToSettingsTab(defaultTab);
     loadSettingsData();
@@ -1421,11 +1585,6 @@ if (btnOpenUsers) {
 const tabBtnFields = document.getElementById("tab-btn-fields");
 if (tabBtnFields) {
   tabBtnFields.addEventListener("click", () => switchToSettingsTab("fields"));
-}
-
-const tabBtnStatuses = document.getElementById("tab-btn-statuses");
-if (tabBtnStatuses) {
-  tabBtnStatuses.addEventListener("click", () => switchToSettingsTab("statuses"));
 }
 
 const tabBtnUsers = document.getElementById("tab-btn-users");
@@ -1449,7 +1608,6 @@ async function loadSettingsData() {
   }
   if (statusesRes.success) {
     state.allStatuses = statusesRes.statuses || [];
-    renderSettingsStatuses();
   }
   if (usersRes.success && isAdmin) {
     state.allUsers = usersRes.users || [];
@@ -1459,113 +1617,427 @@ async function loadSettingsData() {
 
 function renderSettingsFields() {
   const tbody = document.getElementById("fields-table-body");
+  if (!tbody) return;
   tbody.innerHTML = "";
-  state.allFields.forEach(f => {
+
+  const sortedFields = [...state.allFields].sort((a, b) => (a.display_order - b.display_order) || (a.id - b.id));
+
+  const typeLabels = {
+    "text": "نص عادي",
+    "number": "أرقام فقط",
+    "date": "تاريخ",
+    "select": "قائمة منسدلة"
+  };
+
+  sortedFields.forEach(f => {
+    const isProtected = (f.is_system === 1) || (f.field_key === "national_id" || f.field_key === "full_name");
+    const isStrictIdentity = (f.field_key === "national_id" || f.field_key === "full_name");
+
+    let constraintsText = "-";
+    if (f.data_type === "select" || f.field_key === "status_id") {
+      const opts = (f.options || "").split(/[\n,،]/).map(o => o.trim()).filter(Boolean);
+      constraintsText = opts.length > 0 ? `(${opts.length} خيارات)` : "بدون خيارات";
+    } else {
+      const parts = [];
+      if (f.min_length !== null && f.min_length !== undefined) parts.push(`أدنى: ${f.min_length}`);
+      if (f.max_length !== null && f.max_length !== undefined) parts.push(`أقصى: ${f.max_length}`);
+      if (parts.length > 0) constraintsText = parts.join(" | ");
+    }
+
+    let defaultValueDisplay = "-";
+    if (f.field_key === "status_id" && f.default_value) {
+      const matchedStatus = state.allStatuses.find(s => String(s.id) === String(f.default_value) || s.name === String(f.default_value));
+      defaultValueDisplay = matchedStatus ? matchedStatus.name : f.default_value;
+    } else if (f.default_value) {
+      defaultValueDisplay = f.default_value;
+    }
+
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td style="font-family: monospace;">${f.field_key}</td>
-      <td style="font-weight: 600;">${f.label}</td>
-      <td>${f.display_order}</td>
+      <td style="text-align: center; font-weight: 700; font-size: 14px; color: var(--primary-navy);">
+        ${f.display_order}
+      </td>
+      <td style="font-weight: 600; color: #1E293B;">
+        ${escapeHtml(f.label)}
+        ${isProtected ? `<span style="font-size: 11px; color: var(--text-muted); display: block;">(حقل أساسي)</span>` : ""}
+      </td>
+      <td style="font-family: monospace; font-size: 12.5px; color: #475569;">${escapeHtml(f.field_key)}</td>
+      <td>
+        <span class="badge-type">${typeLabels[f.data_type] || f.data_type}</span>
+      </td>
+      <td style="font-size: 12px; color: #475569;">${escapeHtml(constraintsText)}</td>
+      <td style="font-size: 12.5px;">${escapeHtml(defaultValueDisplay)}</td>
       <td>
         <span class="status-badge ${f.is_active ? 'status-active' : 'status-absent'}">
           ${f.is_active ? 'نشط' : 'معطل'}
         </span>
       </td>
-      <td>
-        <button class="btn btn-sm ${f.is_active ? 'btn-red' : 'btn-green'}" onclick="toggleFieldStatus(${f.id}, ${f.is_active ? 0 : 1})">
-          ${f.is_active ? 'تعطيل' : 'تفعيل'}
-        </button>
+      <td style="text-align: center; white-space: nowrap;">
+        <div class="table-actions" style="justify-content: center; gap: 4px;">
+          <button class="btn btn-sm btn-outline" onclick="editFieldFromSettings(${f.id})" title="تعديل خصائص الحقل">
+            ✏️
+          </button>
+          ${isStrictIdentity ? `
+            <button class="btn btn-sm btn-outline" disabled title="حقل هوية أساسي محمي من الحذف أو التعطيل" style="opacity: 0.6; cursor: not-allowed;">
+              🛡️ محمي
+            </button>
+          ` : `
+            <button class="btn btn-sm ${f.is_active ? 'btn-red' : 'btn-green'}" onclick="toggleFieldStatus(${f.id}, ${f.is_active ? 0 : 1})" title="${f.is_active ? 'تعطيل الحقل' : 'تفعيل الحقل'}">
+              ${f.is_active ? 'تعطيل' : 'تفعيل'}
+            </button>
+            ${isProtected ? `
+              <button class="btn btn-sm btn-outline" disabled title="حقل نظام أساسي محمي من الحذف" style="opacity: 0.6; cursor: not-allowed;">
+                🛡️
+              </button>
+            ` : `
+              <button class="btn btn-sm btn-red" onclick="deleteFieldFromSettings(${f.id}, '${escapeHtml(f.label)}')" title="حذف الحقل">
+                🗑️
+              </button>
+            `}
+          `}
+        </div>
       </td>
     `;
     tbody.appendChild(tr);
   });
 }
 
-function renderSettingsStatuses() {
-  const tbody = document.getElementById("statuses-table-body");
-  tbody.innerHTML = "";
-  state.allStatuses.forEach(s => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${s.id}</td>
-      <td style="font-weight: 600;">${s.name}</td>
-      <td>
-        <span class="status-badge ${s.is_active ? 'status-active' : 'status-absent'}">
-          ${s.is_active ? 'نشط' : 'معطل'}
-        </span>
-      </td>
-      <td>
-        <button class="btn btn-sm ${s.is_active ? 'btn-red' : 'btn-green'}" onclick="toggleStatusState(${s.id}, ${s.is_active ? 0 : 1})">
-          ${s.is_active ? 'تعطيل' : 'تفعيل'}
-        </button>
-      </td>
-    `;
-    tbody.appendChild(tr);
+function renderDefaultValueControl(targetVal = null) {
+  const wrapper = document.getElementById("default-val-wrapper");
+  if (!wrapper) return;
+
+  const typeEl = document.getElementById("new-field-type");
+  const currentType = typeEl ? typeEl.value : "text";
+  const keyEl = document.getElementById("new-field-key");
+  const currentKey = (keyEl ? keyEl.value : "").trim().toLowerCase();
+
+  const optionsContainer = document.getElementById("field-options-container");
+  if (optionsContainer) {
+    optionsContainer.style.display = (currentType === "select") ? "block" : "none";
+  }
+
+  // الاحتفاظ بالقيمة المحددة حالياً إذا لم تُمرر قيمة صريحة
+  let currentVal = targetVal;
+  if (currentVal === null || currentVal === undefined) {
+    const existingEl = document.getElementById("new-field-default-val");
+    currentVal = existingEl ? existingEl.value : "";
+  }
+  const strVal = (currentVal !== null && currentVal !== undefined) ? String(currentVal).trim() : "";
+
+  if (currentType === "select") {
+    let optionsHtml = '<option value="">-- بدون قيمة افتراضية --</option>';
+
+    // استخراج الخيارات من حقل خيارات القائمة
+    const optsInput = document.getElementById("new-field-options");
+    const rawText = optsInput ? optsInput.value : "";
+    let items = rawText.split(/[,،\n]/).map(s => s.trim()).filter(Boolean);
+
+    // إذا كان الحقل هو status_id ولم تُكتب خيارات بعد، نستعين بالحالات المسجلة
+    if (currentKey === "status_id" && items.length === 0) {
+      const statuses = (state.allStatuses && state.allStatuses.length > 0) ? state.allStatuses : (state.statuses || []);
+      items = statuses.map(s => s.name);
+    }
+
+    items.forEach(item => {
+      let isSelected = false;
+      if (currentKey === "status_id") {
+        const matched = (state.allStatuses || []).find(s => s.name === item);
+        if (matched && (String(matched.id) === strVal || matched.name === strVal)) {
+          isSelected = true;
+        } else if (item === strVal) {
+          isSelected = true;
+        }
+      } else {
+        isSelected = (strVal === item);
+      }
+      optionsHtml += `<option value="${escapeHtml(item)}" ${isSelected ? "selected" : ""}>${escapeHtml(item)}</option>`;
+    });
+
+    wrapper.innerHTML = `<select id="new-field-default-val" class="input-control">${optionsHtml}</select>`;
+  } else if (currentType === "number") {
+    wrapper.innerHTML = `<input type="number" id="new-field-default-val" class="input-control" placeholder="رقم مبدئي..." value="${escapeHtml(strVal)}">`;
+  } else if (currentType === "date") {
+    wrapper.innerHTML = `<input type="date" id="new-field-default-val" class="input-control" value="${escapeHtml(strVal)}">`;
+  } else {
+    wrapper.innerHTML = `<input type="text" id="new-field-default-val" class="input-control" placeholder="القيمة المبدئية..." value="${escapeHtml(strVal)}">`;
+  }
+}
+
+// مراقبة تغيير نوع الحقل والخيارات لتحديث حقل القيمة الافتراضية فورياً
+const newFieldTypeEl = document.getElementById("new-field-type");
+if (newFieldTypeEl) {
+  newFieldTypeEl.addEventListener("change", () => {
+    renderDefaultValueControl("");
   });
 }
 
-document.getElementById("btn-add-field-submit").addEventListener("click", async () => {
-  const key = document.getElementById("new-field-key").value.trim();
-  const label = document.getElementById("new-field-label").value.trim();
-  const order = parseInt(document.getElementById("new-field-order").value, 10) || 0;
+const newFieldOptsEl = document.getElementById("new-field-options");
+if (newFieldOptsEl) {
+  newFieldOptsEl.addEventListener("input", () => {
+    const typeEl = document.getElementById("new-field-type");
+    if (typeEl && typeEl.value === "select") {
+      const currentSelected = document.getElementById("new-field-default-val")?.value || "";
+      renderDefaultValueControl(currentSelected);
+    }
+  });
+}
 
-  if (!key || !label) {
-    showAlert("يرجى إدخال المفتاح والتسمية للحقل الجديد");
+window.editFieldFromSettings = function(fieldId) {
+  const f = state.allFields.find(field => field.id === fieldId);
+  if (!f) return;
+
+  const idInput = document.getElementById("field-edit-id");
+  if (idInput) idInput.value = f.id;
+
+  const titleEl = document.getElementById("field-form-title");
+  if (titleEl) titleEl.innerText = `✏️ تعديل خصائص الحقل: ${f.label}`;
+
+  const keyInput = document.getElementById("new-field-key");
+  const hintEl = document.getElementById("field-key-hint");
+  if (keyInput) {
+    keyInput.value = f.field_key;
+    if (f.is_system === 1 || f.field_key === "national_id" || f.field_key === "full_name") {
+      keyInput.disabled = true;
+      if (hintEl) hintEl.innerText = "حقل نظام أساسي محمي (لا يمكن تغيير المفتاح البرمجي)";
+    } else {
+      keyInput.disabled = false;
+      if (hintEl) hintEl.innerText = "أحرف إنجليزية وأرقام وشرطة سفلية فقط";
+    }
+  }
+
+  const labelInput = document.getElementById("new-field-label");
+  if (labelInput) labelInput.value = f.label || "";
+
+  const typeInput = document.getElementById("new-field-type");
+  if (typeInput) {
+    typeInput.value = f.data_type || "text";
+    // الحقول الأساسية للنظام محددة النوع برمجياً
+    if (f.is_system === 1 || f.field_key === "status_id" || f.field_key === "national_id" || f.field_key === "full_name") {
+      typeInput.disabled = true;
+    } else {
+      typeInput.disabled = false;
+    }
+  }
+
+  const minInput = document.getElementById("new-field-min-length");
+  if (minInput) minInput.value = (f.min_length !== null && f.min_length !== undefined) ? f.min_length : "";
+
+  const maxInput = document.getElementById("new-field-max-length");
+  if (maxInput) maxInput.value = (f.max_length !== null && f.max_length !== undefined) ? f.max_length : "";
+
+  const orderInput = document.getElementById("new-field-order");
+  if (orderInput) orderInput.value = f.display_order || 0;
+
+  const optsInput = document.getElementById("new-field-options");
+  const optsHint = document.getElementById("field-options-hint");
+  if (optsInput) {
+    if (f.field_key === "status_id") {
+      // إظهار الخيارات الحالية للحالة الوظيفية مع إمكانية تعديلها وإضافة خيارات جديدة كأي حقل آخر
+      const statuses = (state.allStatuses && state.allStatuses.length > 0) ? state.allStatuses : (state.statuses || []);
+      optsInput.value = f.options ? f.options : statuses.map(s => s.name).join("، ");
+      optsInput.readOnly = false;
+      optsInput.style.backgroundColor = "";
+      if (optsHint) optsHint.style.display = "none";
+    } else {
+      optsInput.value = f.options || "";
+      optsInput.readOnly = false;
+      optsInput.style.backgroundColor = "";
+      if (optsHint) optsHint.style.display = "none";
+    }
+  }
+
+  // بناء حقل القيمة الافتراضية بحسب نوع الحقل مع تحديد قيمته
+  renderDefaultValueControl(f.default_value || "");
+
+  const cancelBtn = document.getElementById("btn-cancel-edit-field");
+  if (cancelBtn) cancelBtn.style.display = "inline-flex";
+
+  const formBox = document.getElementById("field-form-box");
+  if (formBox) formBox.scrollIntoView({ behavior: "smooth" });
+};
+
+function resetFieldForm() {
+  const idInput = document.getElementById("field-edit-id");
+  if (idInput) idInput.value = "";
+
+  const titleEl = document.getElementById("field-form-title");
+  if (titleEl) titleEl.innerText = "➕ إضافة حقل جديد للسجلات:";
+
+  const keyInput = document.getElementById("new-field-key");
+  const hintEl = document.getElementById("field-key-hint");
+  if (keyInput) {
+    keyInput.disabled = false;
+    keyInput.value = "";
+  }
+  if (hintEl) hintEl.innerText = "أحرف إنجليزية وأرقام وشرطة سفلية فقط";
+
+  const labelInput = document.getElementById("new-field-label");
+  if (labelInput) labelInput.value = "";
+
+  const typeInput = document.getElementById("new-field-type");
+  if (typeInput) {
+    typeInput.disabled = false;
+    typeInput.value = "text";
+  }
+
+  const minInput = document.getElementById("new-field-min-length");
+  if (minInput) minInput.value = "";
+
+  const maxInput = document.getElementById("new-field-max-length");
+  if (maxInput) maxInput.value = "";
+
+  const orderInput = document.getElementById("new-field-order");
+  if (orderInput) orderInput.value = "0";
+
+  const optsInput = document.getElementById("new-field-options");
+  const optsHint = document.getElementById("field-options-hint");
+  if (optsInput) {
+    optsInput.value = "";
+    optsInput.readOnly = false;
+    optsInput.style.backgroundColor = "";
+  }
+  if (optsHint) optsHint.style.display = "none";
+
+  renderDefaultValueControl("");
+
+  const cancelBtn = document.getElementById("btn-cancel-edit-field");
+  if (cancelBtn) cancelBtn.style.display = "none";
+}
+
+const btnCancelEditField = document.getElementById("btn-cancel-edit-field");
+if (btnCancelEditField) {
+  btnCancelEditField.addEventListener("click", resetFieldForm);
+}
+
+const btnSaveFieldSubmit = document.getElementById("btn-save-field-submit");
+if (btnSaveFieldSubmit) {
+  btnSaveFieldSubmit.addEventListener("click", async () => {
+    const editIdVal = document.getElementById("field-edit-id")?.value.trim() || "";
+    const fieldId = editIdVal ? parseInt(editIdVal, 10) : null;
+    const key = (document.getElementById("new-field-key")?.value || "").trim().toLowerCase();
+    const label = (document.getElementById("new-field-label")?.value || "").trim();
+    const dataType = document.getElementById("new-field-type")?.value || "text";
+    const minLenVal = (document.getElementById("new-field-min-length")?.value || "").trim();
+    const maxLenVal = (document.getElementById("new-field-max-length")?.value || "").trim();
+    const orderVal = (document.getElementById("new-field-order")?.value || "").trim();
+    const defaultVal = (document.getElementById("new-field-default-val")?.value || "").trim();
+    const optionsVal = (document.getElementById("new-field-options")?.value || "").trim();
+
+    if (!fieldId && !key) {
+      showAlert("يرجى إدخال المفتاح البرمجي للحقل الجديد");
+      return;
+    }
+
+    if (!label) {
+      showAlert("يرجى إدخال التسمية المعروضة للحقل");
+      return;
+    }
+
+    const minLength = minLenVal !== "" ? parseInt(minLenVal, 10) : null;
+    const maxLength = maxLenVal !== "" ? parseInt(maxLenVal, 10) : null;
+    const displayOrder = orderVal !== "" ? parseInt(orderVal, 10) : 0;
+
+    if (minLength !== null && maxLength !== null && minLength > maxLength) {
+      showAlert("الحد الأدنى للأحرف لا يمكن أن يتجاوز الحد الأقصى");
+      return;
+    }
+
+    const payload = {
+      id: fieldId,
+      field_key: key,
+      label: label,
+      data_type: dataType,
+      min_length: minLength,
+      max_length: maxLength,
+      options: optionsVal,
+      default_value: defaultVal,
+      display_order: displayOrder
+    };
+
+    const api = getAPI();
+    const res = await api.save_field(payload);
+    if (res.success) {
+      showToast(res.message || "تم حفظ خصائص الحقل بنجاح");
+      resetFieldForm();
+      await loadSettingsData();
+
+      // تحديث قائمة الحقول النشطة والحالات ورأس وقيم الجدول الرئيسي
+      const initRes = await api.get_initial_data();
+      if (initRes.success) {
+        state.activeFields = initRes.active_fields || [];
+        state.statuses = initRes.statuses || [];
+        const statusFieldDef = state.activeFields.find(f => f.field_key === "status_id");
+        if (statusFieldDef && statusFieldDef.default_value && state.statuses.some(s => String(s.id) === String(statusFieldDef.default_value))) {
+          state.defaultStatusId = parseInt(statusFieldDef.default_value, 10);
+        }
+      }
+      populateStatusDropdowns();
+      renderEmployeesTableHeader();
+      renderEmployeesTable();
+    } else {
+      showAlert(res.error || "تعذر حفظ الحقل");
+    }
+  });
+}
+
+window.deleteFieldFromSettings = async function(fieldId, fieldLabel) {
+  const f = state.allFields.find(field => field.id === fieldId);
+  if (f && (f.is_system === 1 || f.field_key === "national_id" || f.field_key === "full_name")) {
+    showAlert(`عذراً، لا يمكن حذف الحقل الأساسي [${fieldLabel}] لأنه حقل محمي للنظام`);
     return;
   }
 
-  const api = getAPI();
-  const res = await api.save_field(key, label, order);
-  if (res.success) {
-    showToast("تمت إضافة الحقل الديناميكي بنجاح");
-    document.getElementById("new-field-key").value = "";
-    document.getElementById("new-field-label").value = "";
-    loadSettingsData();
-    // تحديث قائمة الحقول النشطة
-    const initRes = await api.get_initial_data();
-    if (initRes.success) state.activeFields = initRes.active_fields;
-  } else {
-    showAlert(res.error || "تعذر إضافة الحقل");
-  }
-});
+  showCustomConfirm(
+    "تأكيد حذف الحقل",
+    `هل أنت متأكد من رغبتك في حذف الحقل المخصص [${fieldLabel}] نهائياً؟ سيتم حذف أي بيانات مدخلة لهذا الحقل في سجلات الموظفين.`,
+    async () => {
+      const api = getAPI();
+      const res = await api.delete_field(fieldId);
+      if (res.success) {
+        showToast(res.message || "تم حذف الحقل بنجاح");
+        if (document.getElementById("field-edit-id")?.value === String(fieldId)) {
+          resetFieldForm();
+        }
+        await loadSettingsData();
+        const initRes = await api.get_initial_data();
+        if (initRes.success) {
+          state.activeFields = initRes.active_fields || [];
+        }
+        renderEmployeesTableHeader();
+        renderEmployeesTable();
+      } else {
+        showAlert(res.error || "تعذر حذف الحقل");
+      }
+    }
+  );
+};
 
 window.toggleFieldStatus = async function(fieldId, targetActive) {
+  const f = state.allFields.find(field => field.id === fieldId);
+  if (f && (f.is_system === 1 || f.field_key === "national_id" || f.field_key === "full_name") && targetActive === 0) {
+    showAlert(`لا يمكن تعطيل الحقل الأساسي [${f.label}]`);
+    return;
+  }
+
   const api = getAPI();
   const res = await api.toggle_field(fieldId, targetActive);
   if (res.success) {
-    showToast("تم تحديث حالة الحقل");
-    loadSettingsData();
+    showToast("تم تحديث حالة تفعيل الحقل");
+    await loadSettingsData();
     const initRes = await api.get_initial_data();
-    if (initRes.success) state.activeFields = initRes.active_fields;
-  }
-};
-
-document.getElementById("btn-add-status-submit").addEventListener("click", async () => {
-  const name = document.getElementById("new-status-name").value.trim();
-  if (!name) {
-    showAlert("يرجى إدخال اسم الحالة");
-    return;
-  }
-
-  const api = getAPI();
-  const res = await api.save_status(name);
-  if (res.success) {
-    showToast("تمت إضافة الحالة الوظيفية بنجاح");
-    document.getElementById("new-status-name").value = "";
-    loadSettingsData();
+    if (initRes.success) {
+      state.activeFields = initRes.active_fields || [];
+      state.statuses = initRes.statuses || [];
+      const statusFieldDef = state.activeFields.find(f => f.field_key === "status_id");
+      if (statusFieldDef && statusFieldDef.default_value && state.statuses.some(s => String(s.id) === String(statusFieldDef.default_value))) {
+        state.defaultStatusId = parseInt(statusFieldDef.default_value, 10);
+      }
+    }
     populateStatusDropdowns();
+    renderEmployeesTableHeader();
+    renderEmployeesTable();
   } else {
-    showAlert(res.error || "تعذر إضافة الحالة");
-  }
-});
-
-window.toggleStatusState = async function(statusId, targetActive) {
-  const api = getAPI();
-  const res = await api.toggle_status(statusId, targetActive);
-  if (res.success) {
-    showToast("تم تحديث حالة التشغيل");
-    loadSettingsData();
-    populateStatusDropdowns();
+    showAlert(res.error || "تعذر تغيير حالة الحقل");
   }
 };
 

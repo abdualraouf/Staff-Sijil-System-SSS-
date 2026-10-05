@@ -107,7 +107,7 @@
     <!-- جدول بيانات الموظفين -->
     <section class="table-container">
       <table class="data-table">
-        <thead>
+        <thead id="employees-table-head">
           <tr>
             <th style="width: 44px; text-align: center;">
               <input type="checkbox" id="select-all-checkbox" class="table-checkbox" title="تحديد الكل">
@@ -494,7 +494,7 @@
 
   <!-- 5. نافذة إعدادات النظام الموحدة (Settings Modal) -->
   <div class="modal-overlay" id="modal-settings">
-    <div class="modal-box modal-lg">
+    <div class="modal-box modal-xl">
       <div class="modal-header">
         <h3>إعدادات المنظومة</h3>
         <button class="modal-close-btn" data-close="modal-settings">&times;</button>
@@ -504,77 +504,103 @@
         <!-- التبويبات -->
         <div style="display: flex; gap: 10px; border-bottom: 2px solid var(--color-gray-border); padding-bottom: 10px;">
           <button class="btn btn-sm btn-blue admin-only" id="tab-btn-users">المستخدمون والصلاحيات</button>
-          <button class="btn btn-sm btn-outline" id="tab-btn-fields">الحقول الديناميكية</button>
-          <button class="btn btn-sm btn-outline" id="tab-btn-statuses">الحالات الوظيفية</button>
+          <button class="btn btn-sm btn-outline" id="tab-btn-fields">إدارة الحقول</button>
         </div>
 
-        <!-- محتوى تبويب الحقول الديناميكية -->
+        <!-- محتوى تبويب إدارة الحقول -->
         <div id="tab-content-fields">
-          <div style="background: #F8FAFC; padding: 14px; border-radius: var(--radius-md); border: 1px solid var(--color-gray-border); margin-bottom: 16px;">
-            <h4 style="font-size: 13.5px; margin-bottom: 10px; color: var(--primary-navy);">إضافة حقل جديد للسجلات:</h4>
-            <div class="form-grid-3">
-              <div class="form-group">
-                <label>مفتاح الحقل (إنجليزي)</label>
-                <input type="text" id="new-field-key" class="input-control" placeholder="مثال: phone_number">
-              </div>
-              <div class="form-group">
-                <label>التسمية المعروضة (عربي)</label>
-                <input type="text" id="new-field-label" class="input-control" placeholder="مثال: رقم الهاتف">
-              </div>
-              <div class="form-group">
-                <label>ترتيب العرض</label>
-                <input type="number" id="new-field-order" class="input-control" value="0">
-              </div>
-            </div>
-            <button class="btn btn-green btn-sm" id="btn-add-field-submit" style="margin-top: 10px;">
-              ➕ إضافة الحقل
-            </button>
+          <div style="background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: var(--radius-md); padding: 10px 14px; margin-bottom: 14px; font-size: 13px; color: #1E40AF; display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 16px;">ℹ️</span>
+            <span><strong>قاعدة العرض والحماية:</strong> أول (6) حقول نشطة بحسب "ترتيب العرض" تظهر كأعمدة بالجدول الرئيسي. حقول الهوية الأساسية (الرقم الوطني والاسم الكامل) محمية برمجياً من الحذف أو التعطيل.</span>
           </div>
 
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>المفتاح البرمجي</th>
-                <th>التسمية</th>
-                <th>ترتيب العرض</th>
-                <th>الحالة</th>
-                <th>إجراء</th>
-              </tr>
-            </thead>
-            <tbody id="fields-table-body">
-              <!-- الحقول -->
-            </tbody>
-          </table>
-        </div>
+          <!-- استمارة إضافة وتعديل خصائص الحقول -->
+          <div id="field-form-box" style="background: #F8FAFC; padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--color-gray-border); margin-bottom: 16px;">
+            <input type="hidden" id="field-edit-id" value="">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <h4 id="field-form-title" style="font-size: 14px; color: var(--primary-navy); font-weight: 700;">➕ إضافة حقل جديد للسجلات:</h4>
+              <button class="btn btn-sm btn-outline" id="btn-cancel-edit-field" style="display: none;" type="button">إلغاء التعديل</button>
+            </div>
 
-        <!-- محتوى تبويب الحالات الوظيفية -->
-        <div id="tab-content-statuses" style="display: none;">
-          <div style="background: #F8FAFC; padding: 14px; border-radius: var(--radius-md); border: 1px solid var(--color-gray-border); margin-bottom: 16px;">
-            <h4 style="font-size: 13.5px; margin-bottom: 10px; color: var(--primary-navy);">إضافة حالة وظيفية جديدة:</h4>
-            <div style="display: flex; gap: 12px; align-items: flex-end;">
-              <div class="form-group" style="flex: 1;">
-                <label>اسم الحالة</label>
-                <input type="text" id="new-status-name" class="input-control" placeholder="مثال: تحت الاختبار">
+            <div class="form-grid-3">
+              <div class="form-group">
+                <label for="new-field-key">مفتاح الحقل (إنجليزي) <span style="color: var(--color-red);">*</span></label>
+                <input type="text" id="new-field-key" class="input-control" placeholder="مثال: phone_number">
+                <small id="field-key-hint" style="color: var(--text-muted); font-size: 11px;">أحرف إنجليزية وأرقام وشرطة سفلية فقط</small>
               </div>
-              <button class="btn btn-green btn-sm" id="btn-add-status-submit">
-                ➕ إضافة الحالة
+
+              <div class="form-group">
+                <label for="new-field-label">التسمية المعروضة (عربي) <span style="color: var(--color-red);">*</span></label>
+                <input type="text" id="new-field-label" class="input-control" placeholder="مثال: رقم الهاتف المحمول">
+              </div>
+
+              <div class="form-group">
+                <label for="new-field-type">نوع البيانات</label>
+                <select id="new-field-type" class="input-control">
+                  <option value="text">نص عادي (Text)</option>
+                  <option value="number">أرقام فقط (Number)</option>
+                  <option value="date">تاريخ (Date)</option>
+                  <option value="select">قائمة منسدلة (Select)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-grid-4" style="margin-top: 12px;">
+              <div class="form-group">
+                <label for="new-field-min-length">الحد الأدنى للحروف</label>
+                <input type="number" id="new-field-min-length" class="input-control" placeholder="مثلاً: 12" min="0">
+              </div>
+
+              <div class="form-group">
+                <label for="new-field-max-length">الحد الأقصى للحروف</label>
+                <input type="number" id="new-field-max-length" class="input-control" placeholder="مثلاً: 50" min="1">
+              </div>
+
+              <div class="form-group">
+                <label for="new-field-order">ترتيب العرض (العمود)</label>
+                <input type="number" id="new-field-order" class="input-control" value="0" min="0" title="أول 6 حقول نشطة تظهر في الجدول الرئيسي">
+              </div>
+
+              <div class="form-group" id="field-default-val-container">
+                <label for="new-field-default-val">القيمة الافتراضية</label>
+                <div id="default-val-wrapper">
+                  <input type="text" id="new-field-default-val" class="input-control" placeholder="القيمة المبدئية...">
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group" id="field-options-container" style="margin-top: 12px; display: none;">
+              <label for="new-field-options" id="field-options-label">خيارات القائمة المنسدلة (تُفصل الخيارات بفاصلة أو سطر جديد)</label>
+              <input type="text" id="new-field-options" class="input-control" placeholder="مثال: الشؤون الإدارية، تقنية المعلومات، المالية، الموارد البشرية">
+              <small id="field-options-hint" style="color: var(--text-muted); font-size: 11.5px; display: none; margin-top: 5px;"></small>
+            </div>
+
+            <div style="margin-top: 14px; display: flex; gap: 10px;">
+              <button class="btn btn-green btn-sm" id="btn-save-field-submit" type="button">
+                💾 حفظ الحقل
               </button>
             </div>
           </div>
 
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>معرف الحالة</th>
-                <th>اسم الحالة</th>
-                <th>الحالة التشغيلية</th>
-                <th>إجراء</th>
-              </tr>
-            </thead>
-            <tbody id="statuses-table-body">
-              <!-- الحالات -->
-            </tbody>
-          </table>
+          <div style="overflow-x: auto;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th style="width: 80px;">الترتيب</th>
+                  <th>التسمية</th>
+                  <th>المفتاح البرمجي</th>
+                  <th>نوع البيانات</th>
+                  <th>القيود / الخيارات</th>
+                  <th>القيمة الافتراضية</th>
+                  <th>الحالة</th>
+                  <th style="text-align: center; width: 140px;">الإجراءات</th>
+                </tr>
+              </thead>
+              <tbody id="fields-table-body">
+                <!-- الحقول -->
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <!-- محتوى تبويب إدارة المستخدمين والصلاحيات -->

@@ -5,6 +5,8 @@
 """
 
 import os
+import re
+import json
 import sqlite3
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -23,7 +25,7 @@ class Database:
 
     def get_connection(self) -> sqlite3.Connection:
         """إنشاء اتصال مع قاعدة البيانات وتفعيل المفاتيح الأجنبية وتنسيق الصفوف كقواميس"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
         conn.execute("PRAGMA foreign_keys = ON;")
         conn.execute("PRAGMA journal_mode = WAL;")
         conn.row_factory = sqlite3.Row
@@ -59,10 +61,32 @@ class Database:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 field_key TEXT NOT NULL UNIQUE,
                 label TEXT NOT NULL,
+                data_type TEXT NOT NULL DEFAULT 'text',
+                min_length INTEGER DEFAULT NULL,
+                max_length INTEGER DEFAULT NULL,
+                options TEXT DEFAULT NULL,
+                default_value TEXT DEFAULT NULL,
                 is_active INTEGER NOT NULL DEFAULT 1,
+                is_system INTEGER NOT NULL DEFAULT 0,
                 display_order INTEGER NOT NULL DEFAULT 0
             );
             """)
+
+            # التحقق من وجود الأعمدة وترقيتها تلقائياً في حال وجود قاعدة بيانات مسبقة
+            cursor.execute("PRAGMA table_info(fields_definition);")
+            existing_cols = {col[1] for col in cursor.fetchall()}
+            if "data_type" not in existing_cols:
+                cursor.execute("ALTER TABLE fields_definition ADD COLUMN data_type TEXT NOT NULL DEFAULT 'text';")
+            if "min_length" not in existing_cols:
+                cursor.execute("ALTER TABLE fields_definition ADD COLUMN min_length INTEGER DEFAULT NULL;")
+            if "max_length" not in existing_cols:
+                cursor.execute("ALTER TABLE fields_definition ADD COLUMN max_length INTEGER DEFAULT NULL;")
+            if "options" not in existing_cols:
+                cursor.execute("ALTER TABLE fields_definition ADD COLUMN options TEXT DEFAULT NULL;")
+            if "default_value" not in existing_cols:
+                cursor.execute("ALTER TABLE fields_definition ADD COLUMN default_value TEXT DEFAULT NULL;")
+            if "is_system" not in existing_cols:
+                cursor.execute("ALTER TABLE fields_definition ADD COLUMN is_system INTEGER NOT NULL DEFAULT 0;")
 
             # إنشاء جدول الموظفين
             cursor.execute("""
@@ -117,7 +141,42 @@ class Database:
                 ]
                 cursor.executemany("INSERT INTO users (display_name, pin_code, role) VALUES (?, ?, ?);", default_users)
 
+            # إدخال وترقية الحقول الأساسية للنظام
+            core_fields = [
+                ("national_id", "الرقم الوطني", "number", 12, 12, "", "", 1, 1, 1),
+                ("full_name", "الاسم الكامل", "text", 3, 100, "", "", 1, 1, 2),
+                ("status_id", "الحالة الوظيفية", "select", None, None, "", "1", 1, 1, 3),
+                ("department", "القسم / الإدارة", "text", None, None, "", "", 1, 0, 4),
+                ("current_grade", "الدرجة الحالية", "text", None, None, "", "", 1, 0, 5),
+                ("education_level", "المؤهل العلمي", "text", None, None, "", "", 1, 0, 6),
+                ("hire_date", "تاريخ التعيين", "date", None, None, "", "", 1, 0, 7),
+                ("grade_date", "تاريخ استحقاق الدرجة", "date", None, None, "", "", 1, 0, 8),
+                ("specialization", "التخصص العلمي", "text", None, None, "", "", 1, 0, 9),
+            ]
+            for f_key, f_lbl, f_type, f_min, f_max, f_opt, f_def, f_act, f_sys, f_ord in core_fields:
+                cursor.execute("SELECT id FROM fields_definition WHERE field_key = ?;", (f_key,))
+                existing_f = cursor.fetchone()
+                if not existing_f:
+                    cursor.execute("""
+                        INSERT INTO fields_definition 
+                        (field_key, label, data_type, min_length, max_length, options, default_value, is_active, is_system, display_order)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                    """, (f_key, f_lbl, f_type, f_min, f_max, f_opt, f_def, f_act, f_sys, f_ord))
+                else:
+                    if f_sys == 1:
+                        cursor.execute("UPDATE fields_definition SET is_system = 1 WHERE id = ?;", (existing_f[0],))
+
             conn.commit()
+
+            # ضمان وجود خيارات الحالة الوظيفية الافتراضية في fields_definition
+            cursor.execute("SELECT id, options FROM fields_definition WHERE field_key = 'status_id';")
+            st_field = cursor.fetchone()
+            if st_field and not st_field["options"]:
+                cursor.execute("SELECT name FROM statuses WHERE is_active = 1 ORDER BY id ASC;")
+                status_names = [row["name"] for row in cursor.fetchall()]
+                if status_names:
+                    cursor.execute("UPDATE fields_definition SET options = ? WHERE id = ?;", ("، ".join(status_names), st_field["id"]))
+                    conn.commit()
 
     # ==================== إدارة الجلسات والمستخدمين ====================
 
@@ -245,7 +304,7 @@ class Database:
             return cursor.rowcount > 0
 
     def get_fields(self, active_only: bool = False) -> List[Dict[str, Any]]:
-        """جلب الحقول المخصصة/الديناميكية"""
+        """جلب الحقول مرتبة حسب display_order ثم id مع ضمان وجود خيارات الحالة الوظيفية"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             query = "SELECT * FROM fields_definition"
@@ -253,28 +312,190 @@ class Database:
                 query += " WHERE is_active = 1"
             query += " ORDER BY display_order ASC, id ASC;"
             cursor.execute(query)
-            return [dict(row) for row in cursor.fetchall()]
+            fields = [dict(row) for row in cursor.fetchall()]
+            for f in fields:
+                if f.get("field_key") == "status_id" and not f.get("options"):
+                    cursor.execute("SELECT name FROM statuses WHERE is_active = 1 ORDER BY id ASC;")
+                    names = [r["name"] for r in cursor.fetchall()]
+                    f["options"] = "، ".join(names)
+            return fields
 
-    def add_field(self, field_key: str, label: str, display_order: int = 0) -> Dict[str, Any]:
-        """إضافة حقل ديناميكي جديد"""
+    def add_field(
+        self,
+        field_key: str,
+        label: str,
+        display_order: int = 0,
+        data_type: str = "text",
+        min_length: Optional[int] = None,
+        max_length: Optional[int] = None,
+        options: str = "",
+        default_value: str = ""
+    ) -> Dict[str, Any]:
+        """إضافة حقل جديد للنظام مع كامل خصائصه"""
         field_key = field_key.strip().lower()
         label = label.strip()
         if not field_key or not label:
             raise ValueError("مفتاح الحقل والتسمية مطلوبان")
+
+        if not re.match(r'^[a-z0-9_]+$', field_key):
+            raise ValueError("مفتاح الحقل يجب أن يتكون من أحرف إنجليزية وأرقام وشرطة سفلية فقط (_) بدون مسافات")
+
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute(
-                "INSERT INTO fields_definition (field_key, label, is_active, display_order) VALUES (?, ?, 1, ?);",
-                (field_key, label, display_order)
-            )
+            cursor.execute("SELECT id FROM fields_definition WHERE field_key = ?;", (field_key,))
+            if cursor.fetchone():
+                raise ValueError(f"مفتاح الحقل [{field_key}] مسجل مسبقاً")
+
+            cursor.execute("""
+                INSERT INTO fields_definition 
+                (field_key, label, data_type, min_length, max_length, options, default_value, is_active, is_system, display_order)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, ?);
+            """, (field_key, label, data_type, min_length, max_length, options, default_value, display_order))
             new_id = cursor.lastrowid
             conn.commit()
-            return {"id": new_id, "field_key": field_key, "label": label, "is_active": 1, "display_order": display_order}
+            return {
+                "id": new_id,
+                "field_key": field_key,
+                "label": label,
+                "data_type": data_type,
+                "min_length": min_length,
+                "max_length": max_length,
+                "options": options,
+                "default_value": default_value,
+                "is_active": 1,
+                "is_system": 0,
+                "display_order": display_order
+            }
 
-    def toggle_field(self, field_id: int, is_active: int) -> bool:
-        """تفعيل أو تعطيل حقل ديناميكي"""
+    def save_field(self, field_data: Dict[str, Any]) -> Dict[str, Any]:
+        """إضافة أو تعديل خصائص حقل"""
+        field_id = field_data.get("id")
+        field_key = str(field_data.get("field_key", "")).strip().lower()
+        label = str(field_data.get("label", "")).strip()
+        data_type = str(field_data.get("data_type", "text")).strip().lower() or "text"
+        min_length = field_data.get("min_length")
+        max_length = field_data.get("max_length")
+        options = str(field_data.get("options", "")).strip()
+        default_value = str(field_data.get("default_value", "")).strip()
+        display_order = int(field_data.get("display_order", 0))
+
+        if min_length not in (None, ""):
+            try: min_length = int(min_length)
+            except ValueError: min_length = None
+        else: min_length = None
+
+        if max_length not in (None, ""):
+            try: max_length = int(max_length)
+            except ValueError: max_length = None
+        else: max_length = None
+
+        if not label:
+            raise ValueError("تسمية الحقل مطلوبة")
+
         with self.get_connection() as conn:
             cursor = conn.cursor()
+
+            if field_id:
+                cursor.execute("SELECT * FROM fields_definition WHERE id = ?;", (field_id,))
+                existing = cursor.fetchone()
+                if not existing:
+                    raise ValueError("الحقل المطلوب تعديله غير موجود")
+
+                is_sys = existing["is_system"]
+                actual_key = existing["field_key"]
+
+                # الحقول الأساسية المحمية لا يمكن تعديل مفتاحها
+                if is_sys == 1:
+                    field_key = actual_key
+                elif field_key and field_key != actual_key:
+                    cursor.execute("SELECT id FROM fields_definition WHERE field_key = ? AND id != ?;", (field_key, field_id))
+                    if cursor.fetchone():
+                        raise ValueError(f"مفتاح الحقل [{field_key}] مسجل مسبقاً")
+
+                # عند تعديل حقل الحالة الوظيفية، مزامنة الخيارات مع جدول الحالات
+                if field_key == "status_id":
+                    if options:
+                        status_names = [s.strip() for s in re.split(r'[,،\n]', options) if s.strip()]
+                        if status_names:
+                            for s_name in status_names:
+                                cursor.execute("SELECT id FROM statuses WHERE name = ?;", (s_name,))
+                                row = cursor.fetchone()
+                                if row:
+                                    cursor.execute("UPDATE statuses SET is_active = 1 WHERE id = ?;", (row["id"],))
+                                else:
+                                    cursor.execute("INSERT INTO statuses (name, is_active) VALUES (?, 1);", (s_name,))
+
+                            placeholders = ",".join("?" for _ in status_names)
+                            cursor.execute(f"UPDATE statuses SET is_active = 0 WHERE name NOT IN ({placeholders});", status_names)
+                            options = "، ".join(status_names)
+
+                    if default_value:
+                        if str(default_value).isdigit():
+                            cursor.execute("SELECT id FROM statuses WHERE id = ?;", (int(default_value),))
+                            if not cursor.fetchone():
+                                cursor.execute("SELECT id FROM statuses WHERE name = ?;", (str(default_value),))
+                                r = cursor.fetchone()
+                                if r: default_value = str(r["id"])
+                        else:
+                            cursor.execute("SELECT id FROM statuses WHERE name = ?;", (str(default_value),))
+                            r = cursor.fetchone()
+                            if r: default_value = str(r["id"])
+
+                cursor.execute("""
+                    UPDATE fields_definition
+                    SET field_key = ?,
+                        label = ?,
+                        data_type = ?,
+                        min_length = ?,
+                        max_length = ?,
+                        options = ?,
+                        default_value = ?,
+                        display_order = ?
+                    WHERE id = ?;
+                """, (field_key, label, data_type, min_length, max_length, options, default_value, display_order, field_id))
+                conn.commit()
+                return {"id": field_id, "field_key": field_key, "label": label, "data_type": data_type, "display_order": display_order}
+            else:
+                return self.add_field(
+                    field_key=field_key,
+                    label=label,
+                    display_order=display_order,
+                    data_type=data_type,
+                    min_length=min_length,
+                    max_length=max_length,
+                    options=options,
+                    default_value=default_value
+                )
+
+    def delete_field(self, field_id: int) -> bool:
+        """حذف حقل ديناميكي مع منع حذف الحقول الأساسية المحمية (الرقم الوطني والاسم الكامل)"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM fields_definition WHERE id = ?;", (field_id,))
+            f = cursor.fetchone()
+            if not f:
+                return False
+
+            if f["is_system"] == 1 or f["field_key"] in ("national_id", "full_name"):
+                raise ValueError(f"عذراً، لا يمكن حذف الحقل الأساسي [{f['label']}] لأنه حقل جوهري للمنظومة")
+
+            cursor.execute("DELETE FROM employee_field_values WHERE field_id = ?;", (field_id,))
+            cursor.execute("DELETE FROM fields_definition WHERE id = ?;", (field_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def toggle_field(self, field_id: int, is_active: int) -> bool:
+        """تفعيل أو تعطيل حقل مع منع تعطيل الحقول الأساسية"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM fields_definition WHERE id = ?;", (field_id,))
+            f = cursor.fetchone()
+            if not f:
+                return False
+
+            if (f["is_system"] == 1 or f["field_key"] in ("national_id", "full_name")) and is_active == 0:
+                raise ValueError(f"لا يمكن تعطيل الحقل الأساسي [{f['label']}]")
+
             cursor.execute("UPDATE fields_definition SET is_active = ? WHERE id = ?;", (1 if is_active else 0, field_id))
             conn.commit()
             return cursor.rowcount > 0
@@ -313,12 +534,13 @@ class Database:
 
             emp_data = dict(emp_row)
 
-            # جلب قيم الحقول المخصصة
+            # جلب قيم الحقول المخصصة غير الأساسية
             cursor.execute("""
                 SELECT f.id as field_id, f.field_key, f.label, v.field_value
                 FROM fields_definition f
                 LEFT JOIN employee_field_values v ON f.id = v.field_id AND v.employee_id = ?
-                WHERE f.is_active = 1
+                WHERE f.is_active = 1 
+                  AND f.field_key NOT IN ('national_id', 'full_name', 'status_id', 'hire_date', 'department', 'current_grade', 'grade_date', 'education_level', 'specialization')
                 ORDER BY f.display_order ASC, f.id ASC;
             """, (emp_id,))
             custom_values = {}
@@ -370,8 +592,12 @@ class Database:
             cursor.execute(query, params)
             employees = [dict(row) for row in cursor.fetchall()]
 
-            # جلب كافة الحقول المخصصة النشطة
-            cursor.execute("SELECT id, field_key FROM fields_definition WHERE is_active = 1;")
+            # جلب كافة الحقول المخصصة النشطة (غير أعمدة جدول employees الأساسية)
+            cursor.execute("""
+                SELECT id, field_key FROM fields_definition 
+                WHERE is_active = 1 
+                  AND field_key NOT IN ('national_id', 'full_name', 'status_id', 'hire_date', 'department', 'current_grade', 'grade_date', 'education_level', 'specialization');
+            """)
             active_fields = cursor.fetchall()
 
             if employees and active_fields:
@@ -431,6 +657,29 @@ class Database:
         if exists:
             raise ValueError(f"الرقم الوطني ({national_id}) مسجل مسبقاً باسم {existing['full_name']}")
 
+        # التحقق من القيود المحددة للحقول (الحد الأدنى والأقصى للحروف)
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM fields_definition WHERE is_active = 1;")
+            active_defs = {r["field_key"]: dict(r) for r in cursor.fetchall()}
+
+        all_incoming = dict(data)
+        if custom_values:
+            all_incoming.update(custom_values)
+
+        for fkey, fdef in active_defs.items():
+            if fkey in all_incoming:
+                val = all_incoming[fkey]
+                if val is not None:
+                    val_str = str(val).strip()
+                    if val_str:
+                        min_len = fdef.get("min_length")
+                        max_len = fdef.get("max_length")
+                        if min_len is not None and len(val_str) < min_len:
+                            raise ValueError(f"قيمة حقل [{fdef['label']}] يجب ألا تقل عن ({min_len}) حرف/رقم")
+                        if max_len is not None and len(val_str) > max_len:
+                            raise ValueError(f"قيمة حقل [{fdef['label']}] يجب ألا تزيد عن ({max_len}) حرف/رقم")
+
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
@@ -467,9 +716,13 @@ class Database:
                 ))
                 emp_id = cursor.lastrowid
 
-            # حفظ الحقول المخصصة إذا تم تمريرها
+            # حفظ الحقول المخصصة إذا تم تمريرها (باستثناء أعمدة الجدول الأساسية)
             if custom_values is not None:
-                cursor.execute("SELECT id, field_key FROM fields_definition WHERE is_active = 1;")
+                cursor.execute("""
+                    SELECT id, field_key FROM fields_definition 
+                    WHERE is_active = 1 
+                      AND field_key NOT IN ('national_id', 'full_name', 'status_id', 'hire_date', 'department', 'current_grade', 'grade_date', 'education_level', 'specialization');
+                """)
                 active_fields = cursor.fetchall()
                 for af in active_fields:
                     fid = af["id"]

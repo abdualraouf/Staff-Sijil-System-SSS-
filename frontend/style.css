@@ -544,6 +544,10 @@ textarea {
   max-width: 900px;
 }
 
+.modal-box.modal-xl {
+  max-width: 1060px;
+}
+
 .modal-header {
   padding: 18px 24px;
   background-color: #F8FAFC;
@@ -620,6 +624,33 @@ textarea {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   gap: 14px;
+}
+
+.form-grid-4 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 12px;
+}
+
+.badge-main-col {
+  display: inline-block;
+  background: #E0E7FF;
+  color: #3730A3;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  margin-right: 4px;
+}
+
+.badge-type {
+  display: inline-block;
+  background: #F1F5F9;
+  color: #475569;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
 }
 
 .section-divider {
