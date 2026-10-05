@@ -19,8 +19,11 @@
     </div>
 
     <div class="nav-user-panel" id="nav-user-panel" style="display: none;">
-      <!-- زر إعدادات النظام الموحد -->
+      <!-- أزرار الإدارة والإعدادات في الشريط العلوي -->
       <div class="toolbar-group" id="nav-actions-group">
+        <button class="btn btn-outline btn-sm" id="btn-open-data-hub" style="color: #FFFFFF; border-color: rgba(255,255,255,0.35);">
+          📦 مركز إدارة وتصدير البيانات
+        </button>
         <button class="btn btn-outline btn-sm" id="btn-open-settings" style="color: #FFFFFF; border-color: rgba(255,255,255,0.35);">
           ⚙️ إعدادات النظام
         </button>
@@ -90,17 +93,13 @@
           <span>🖨️</span>
           <span>طباعة السجلات المحددة</span>
         </button>
-        <button class="btn btn-red admin-only" id="btn-delete-selected" style="display: none;" title="حذف السجلات المحددة نهائياً">
-          <span>🗑️</span>
-          <span>حذف المحدد</span>
-        </button>
+        <span class="selected-counter" id="selected-count-badge">المحدد: 0 موظف</span>
       </div>
 
       <div class="toolbar-group">
-        <span class="selected-counter" id="selected-count-badge">المحدد: 0 موظف</span>
-        <button class="btn btn-blue" id="btn-open-data-hub">
-          <span>📦</span>
-          <span>مركز إدارة وتصدير البيانات</span>
+        <button class="btn btn-red admin-only" id="btn-delete-selected" style="display: none;" title="حذف السجلات المحددة نهائياً">
+          <span>🗑️</span>
+          <span>حذف المحدد</span>
         </button>
       </div>
     </section>
