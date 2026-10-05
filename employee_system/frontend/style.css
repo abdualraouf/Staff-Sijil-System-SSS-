@@ -1,0 +1,838 @@
+/* ==========================================================================
+   نظام سجل الموظفين المحمول (SSS) - ملف الأنماط والتصميم
+   تصميم مخصص للمؤسسات الحكومية: واجهة عربية RTL نقية، خطوط واضحة، وأزرار سهلة الاستخدام
+   ========================================================================== */
+
+:root {
+  --font-family: "Segoe UI", Tahoma, Arial, "Noto Sans Arabic", sans-serif;
+  
+  /* لوحة الألوان الأساسية */
+  --bg-main: #F8FAFC;
+  --bg-card: #FFFFFF;
+  --bg-sidebar: #0F172A;
+  
+  --primary-navy: #1E3A8A;
+  --primary-hover: #1D4ED8;
+  
+  --color-green: #059669;
+  --color-green-hover: #047857;
+  
+  --color-blue: #2563EB;
+  --color-blue-hover: #1D4ED8;
+  
+  --color-red: #DC2626;
+  --color-red-hover: #B91C1C;
+  
+  --color-gray: #64748B;
+  --color-gray-hover: #475569;
+  --color-gray-light: #F1F5F9;
+  --color-gray-border: #CBD5E1;
+  
+  --text-dark: #0F172A;
+  --text-muted: #64748B;
+  --text-light: #F8FAFC;
+  
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  direction: rtl;
+  text-align: right;
+  background-color: var(--bg-main);
+  color: var(--text-dark);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  user-select: text;
+}
+
+/* ==================== شريط التنقل العلوي ==================== */
+.top-navbar {
+  background: linear-gradient(135deg, #0F172A 0%, #1E3A8A 100%);
+  color: #FFFFFF;
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: var(--shadow-md);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.brand-icon {
+  width: 44px;
+  height: 44px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+}
+
+.brand-titles h1 {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+.brand-titles p {
+  font-size: 12px;
+  color: #94A3B8;
+}
+
+.nav-user-panel {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.user-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 6px 14px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.role-tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-weight: 600;
+}
+
+.role-tag.admin {
+  background-color: #EF4444;
+  color: #FFFFFF;
+}
+
+.role-tag.staff {
+  background-color: #10B981;
+  color: #FFFFFF;
+}
+
+/* ==================== الحاوية الرئيسية ==================== */
+.main-content {
+  flex: 1;
+  padding: 24px;
+  max-width: 1540px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ==================== شريط شروط البحث والفلترة ==================== */
+.search-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-gray-border);
+}
+
+.search-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--primary-navy);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.search-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)) auto;
+  gap: 16px;
+  align-items: flex-end;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.input-control {
+  height: 44px;
+  padding: 0 14px;
+  font-size: 14px;
+  font-family: inherit;
+  border: 1.5px solid var(--color-gray-border);
+  border-radius: var(--radius-md);
+  background-color: #FFFFFF;
+  color: var(--text-dark);
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.input-control:focus {
+  outline: none;
+  border-color: var(--primary-navy);
+  box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.15);
+}
+
+.search-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* ==================== شريط الإجراءات والعمليات ==================== */
+.toolbar-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  padding: 14px 20px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-gray-border);
+}
+
+.toolbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.selected-counter {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary-navy);
+  background: #EFF6FF;
+  border: 1px solid #BFDBFE;
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+}
+
+/* ==================== أنماط الأزرار القياسية ==================== */
+.btn {
+  min-height: 42px;
+  height: 42px;
+  padding: 0 18px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  border-radius: var(--radius-md);
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* الألوان الدلالية المطلوبة */
+.btn-green {
+  background-color: var(--color-green);
+  color: #FFFFFF;
+}
+.btn-green:hover:not(:disabled) {
+  background-color: var(--color-green-hover);
+}
+
+.btn-blue {
+  background-color: var(--color-blue);
+  color: #FFFFFF;
+}
+.btn-blue:hover:not(:disabled) {
+  background-color: var(--color-blue-hover);
+}
+
+.btn-red {
+  background-color: var(--color-red);
+  color: #FFFFFF;
+}
+.btn-red:hover:not(:disabled) {
+  background-color: var(--color-red-hover);
+}
+
+.btn-gray {
+  background-color: var(--color-gray);
+  color: #FFFFFF;
+}
+.btn-gray:hover:not(:disabled) {
+  background-color: var(--color-gray-hover);
+}
+
+.btn-outline {
+  background-color: transparent;
+  border: 1.5px solid var(--color-gray-border);
+  color: #334155;
+  box-shadow: none;
+}
+.btn-outline:hover:not(:disabled) {
+  background-color: var(--color-gray-light);
+  border-color: #94A3B8;
+}
+
+.btn-sm {
+  min-height: 34px;
+  height: 34px;
+  padding: 0 12px;
+  font-size: 12.5px;
+}
+
+/* ==================== جدول الموظفين ==================== */
+.table-container {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-gray-border);
+  box-shadow: var(--shadow-sm);
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: right;
+  font-size: 13.5px;
+}
+
+.data-table thead th {
+  background-color: #F8FAFC;
+  color: #334155;
+  font-weight: 700;
+  padding: 14px 16px;
+  border-bottom: 2px solid var(--color-gray-border);
+  white-space: nowrap;
+}
+
+.data-table tbody td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #E2E8F0;
+  vertical-align: middle;
+}
+
+.data-table tbody tr:hover {
+  background-color: #F8FAFC;
+}
+
+.data-table tbody tr.selected {
+  background-color: #EFF6FF;
+}
+
+/* شارات الحالة الوظيفية */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.status-active {
+  background-color: #DCFCE7;
+  color: #15803D;
+  border: 1px solid #BBF7D0;
+}
+
+.status-leave {
+  background-color: #FEF3C7;
+  color: #B45309;
+  border: 1px solid #FDE68A;
+}
+
+.status-delegated {
+  background-color: #DBEAFE;
+  color: #1D4ED8;
+  border: 1px solid #BFDBFE;
+}
+
+.status-absent {
+  background-color: #FEE2E2;
+  color: #B91C1C;
+  border: 1px solid #FECACA;
+}
+
+.status-retired {
+  background-color: #F1F5F9;
+  color: #475569;
+  border: 1px solid #E2E8F0;
+}
+
+/* مربعات الاختيار */
+.table-checkbox {
+  width: 19px;
+  height: 19px;
+  cursor: pointer;
+  accent-color: var(--primary-navy);
+}
+
+.table-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 50px 20px;
+  color: var(--text-muted);
+}
+
+.empty-icon {
+  font-size: 44px;
+  margin-bottom: 12px;
+}
+
+/* ==================== النوافذ المنبثقة (Modals) ==================== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.25s ease;
+}
+
+.modal-overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.modal-box {
+  background: #FFFFFF;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  width: 100%;
+  max-width: 650px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform: translateY(20px);
+  transition: all 0.25s ease;
+}
+
+.modal-overlay.active .modal-box {
+  transform: translateY(0);
+}
+
+.modal-box.modal-lg {
+  max-width: 900px;
+}
+
+.modal-header {
+  padding: 18px 24px;
+  background-color: #F8FAFC;
+  border-bottom: 1px solid var(--color-gray-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-header h3 {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--primary-navy);
+}
+
+.modal-close-btn {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: var(--text-muted);
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-close-btn:hover {
+  background-color: #E2E8F0;
+  color: var(--text-dark);
+}
+
+.modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.modal-footer {
+  padding: 16px 24px;
+  background-color: #F8FAFC;
+  border-top: 1px solid var(--color-gray-border);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* تنبيه الخطأ المضمن في الحقل */
+.inline-warning {
+  color: var(--color-red);
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 4px;
+  display: none;
+}
+
+.inline-warning.visible {
+  display: block;
+}
+
+/* شبكة حقول الاستمارة */
+.form-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.form-grid-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 14px;
+}
+
+.section-divider {
+  border-top: 1.5px dashed var(--color-gray-border);
+  margin: 6px 0;
+  position: relative;
+  text-align: right;
+}
+
+.section-divider span {
+  position: absolute;
+  top: -12px;
+  right: 14px;
+  background: #FFFFFF;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary-navy);
+}
+
+/* ==================== معالج الاستيراد وفض التعارض ==================== */
+.conflict-card {
+  border: 1.5px solid #FCD34D;
+  background-color: #FFFBEB;
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.conflict-info {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #78350F;
+}
+
+.conflict-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+/* ==================== نافذة الطباعة والإعداد ==================== */
+.print-options-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  padding: 12px;
+  background: #F8FAFC;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-gray-border);
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.report-type-card {
+  display: flex;
+  gap: 16px;
+}
+
+.type-radio-box {
+  flex: 1;
+  border: 2px solid var(--color-gray-border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.type-radio-box.selected {
+  border-color: var(--primary-navy);
+  background-color: #EFF6FF;
+}
+
+/* ==================== نظام الإشعارات (Toasts) ==================== */
+.toast-container {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 2000;
+  pointer-events: none;
+}
+
+.toast {
+  min-width: 320px;
+  max-width: 440px;
+  background: #FFFFFF;
+  border-radius: var(--radius-md);
+  padding: 14px 18px;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  pointer-events: auto;
+  border-right: 5px solid #64748B;
+  animation: slideInLeft 0.3s ease;
+  font-size: 13.5px;
+}
+
+.toast.toast-success {
+  border-right-color: var(--color-green);
+}
+
+.toast.toast-error {
+  border-right-color: var(--color-red);
+}
+
+.toast.toast-info {
+  border-right-color: var(--color-blue);
+}
+
+@keyframes slideInLeft {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* ==================== حاوية الطباعة الخاصة بـ window.print() ==================== */
+#print-root {
+  display: none;
+}
+
+@media print {
+  /* إخفاء كافة مكونات الشاشة العادية */
+  body {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+    padding: 0 !important;
+  }
+
+  .top-navbar,
+  .search-card,
+  .toolbar-card,
+  .table-container,
+  .modal-overlay,
+  .toast-container,
+  .btn {
+    display: none !important;
+  }
+
+  #print-root {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    direction: rtl !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 12mm 10mm;
+  }
+
+  /* بطاقة موظف مستقلة للطباعة */
+  .print-employee-card {
+    page-break-after: always;
+    break-after: page;
+    break-inside: avoid;
+    padding: 20px;
+    border: 2px solid #CBD5E1;
+    border-radius: 8px;
+    margin-bottom: 20px;
+  }
+
+  .print-employee-card:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  .print-card-header {
+    text-align: center;
+    border-bottom: 2px solid #1E3A8A;
+    padding-bottom: 12px;
+    margin-bottom: 20px;
+  }
+
+  .print-card-header h2 {
+    font-size: 20pt;
+    color: #1E3A8A;
+    margin-bottom: 4px;
+  }
+
+  .print-card-header p {
+    font-size: 10pt;
+    color: #64748B;
+  }
+
+  .print-card-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 30px;
+  }
+
+  .print-card-table td {
+    padding: 9px 14px;
+    border: 1px solid #CBD5E1;
+    font-size: 11pt;
+  }
+
+  .print-card-table td.field-label {
+    background-color: #F1F5F9 !important;
+    font-weight: bold;
+    width: 32%;
+    color: #1E293B;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-card-footer {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 40px;
+    padding-top: 15px;
+    font-size: 10.5pt;
+    color: #334155;
+  }
+
+  /* كشف جدولي مجمع للطباعة */
+  .print-table-report {
+    width: 100%;
+  }
+
+  .print-table-header {
+    text-align: center;
+    margin-bottom: 16px;
+    border-bottom: 2px solid #1E3A8A;
+    padding-bottom: 10px;
+  }
+
+  .print-table-header h2 {
+    font-size: 18pt;
+    color: #1E3A8A;
+  }
+
+  .print-table-data {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10pt;
+  }
+
+  .print-table-data thead {
+    display: table-header-group !important; /* تكرار الرأس في كل صفحة */
+  }
+
+  .print-table-data thead th {
+    background-color: #1E3A8A !important;
+    color: #FFFFFF !important;
+    padding: 8px 10px;
+    border: 1px solid #1E3A8A;
+    font-size: 10pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-table-data tbody tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .print-table-data tbody td {
+    padding: 7px 10px;
+    border: 1px solid #CBD5E1;
+  }
+
+  .print-table-data tbody tr:nth-child(even) td {
+    background-color: #F8FAFC !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

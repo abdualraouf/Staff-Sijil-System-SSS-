@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>نظام سجل الموظفين المحمول (SSS)</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ==================== شريط التنقل العلوي ==================== -->
+  <header class="top-navbar">
+    <div class="nav-brand">
+      <div class="brand-icon">🏛️</div>
+      <div class="brand-titles">
+        <h1>نظام سجل الموظفين المحمول</h1>
+        <p>المنظومة الإدارية المتكاملة لإدارة الكادر الوظيفي</p>
+      </div>
+    </div>
+
+    <div class="nav-user-panel" id="nav-user-panel" style="display: none;">
+      <!-- أزرار الإدارة الخاصة بمدير النظام فقط -->
+      <div class="toolbar-group admin-only" id="admin-nav-actions" style="display: none;">
+        <button class="btn btn-outline btn-sm" id="btn-open-settings" style="color: #FFFFFF; border-color: rgba(255,255,255,0.3);">
+          ⚙️ إعدادات الحقول والحالات
+        </button>
+        <button class="btn btn-outline btn-sm" id="btn-backup-db" style="color: #FFFFFF; border-color: rgba(255,255,255,0.3);">
+          💾 نسخة احتياطية
+        </button>
+        <button class="btn btn-outline btn-sm" id="btn-restore-db" style="color: #FFFFFF; border-color: rgba(255,255,255,0.3);">
+          📥 استرجاع نسخة
+        </button>
+      </div>
+
+      <div class="user-badge">
+        <span>👤</span>
+        <span id="nav-user-name" style="font-weight: 600;">-</span>
+        <span class="role-tag" id="nav-user-role">-</span>
+      </div>
+
+      <button class="btn btn-sm btn-gray" id="btn-logout">
+        خروج
+      </button>
+    </div>
+  </header>
+
+  <!-- ==================== المحتوى الرئيسي ==================== -->
+  <main class="main-content" id="main-app" style="display: none;">
+
+    <!-- شريط البحث والفلترة -->
+    <section class="search-card">
+      <div class="search-title">
+        <span>🔍</span>
+        <span>البحث وتصفية السجلات</span>
+      </div>
+      <div class="search-grid">
+        <div class="form-group">
+          <label for="search-name">الاسم</label>
+          <input type="text" id="search-name" class="input-control" placeholder="ابحث بالاسم الكامل أو جزء منه...">
+        </div>
+
+        <div class="form-group">
+          <label for="search-national-id">الرقم الوطني</label>
+          <input type="text" id="search-national-id" class="input-control" placeholder="أدخل الرقم الوطني...">
+        </div>
+
+        <div class="form-group">
+          <label for="filter-status">الحالة الوظيفية</label>
+          <select id="filter-status" class="input-control">
+            <option value="all">-- كافة الحالات --</option>
+            <!-- يتم تعبئة الخيارات برمجياً -->
+          </select>
+        </div>
+
+        <div class="search-actions">
+          <button class="btn btn-green" id="btn-search">
+            <span>🔍</span>
+            <span>بحث</span>
+          </button>
+          <button class="btn btn-outline" id="btn-reset-filters">
+            <span>🔄</span>
+            <span>مسح الفلاتر</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- شريط الإجراءات والعمليات -->
+    <section class="toolbar-card">
+      <div class="toolbar-group">
+        <button class="btn btn-green" id="btn-add-employee">
+          <span>➕</span>
+          <span>إضافة موظف جديد</span>
+        </button>
+        <button class="btn btn-blue" id="btn-open-print">
+          <span>🖨️</span>
+          <span>طباعة السجلات المحددة</span>
+        </button>
+      </div>
+
+      <div class="toolbar-group">
+        <span class="selected-counter" id="selected-count-badge">المحدد: 0 موظف</span>
+        <button class="btn btn-blue" id="btn-export-excel">
+          <span>📊</span>
+          <span>تصدير إكسل</span>
+        </button>
+        <button class="btn btn-blue admin-only" id="btn-import-excel">
+          <span>📥</span>
+          <span>استيراد إكسل</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- جدول بيانات الموظفين -->
+    <section class="table-container">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width: 44px; text-align: center;">
+              <input type="checkbox" id="select-all-checkbox" class="table-checkbox" title="تحديد الكل">
+            </th>
+            <th>الرقم الوطني</th>
+            <th>الاسم الكامل</th>
+            <th>الحالة الوظيفية</th>
+            <th>القسم / الإدارة</th>
+            <th>الدرجة الحالية</th>
+            <th>المؤهل العلمي</th>
+            <th style="text-align: center; width: 190px;">الإجراءات</th>
+          </tr>
+        </thead>
+        <tbody id="employees-table-body">
+          <!-- يتم ملء صفوف الموظفين ديناميكياً -->
+        </tbody>
+      </table>
+
+      <!-- رسالة عند عدم وجود نتائج -->
+      <div class="empty-state" id="table-empty-state" style="display: none;">
+        <div class="empty-icon">📭</div>
+        <h3>لا توجد سجلات مطابقة</h3>
+        <p>يرجى التأكد من معايير البحث أو إضافة موظفين جدد للنظام.</p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==================== النوافذ المنبثقة (Modals) ==================== -->
+
+  <!-- 1. نافذة تسجيل الدخول (Login Modal) -->
+  <div class="modal-overlay" id="modal-login">
+    <div class="modal-box" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3>تسجيل الدخول للنظام</h3>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 13.5px; color: var(--text-muted); line-height: 1.5;">
+          مرحباً بك. يرجى اختيار اسم المستخدم وإدخال رمز المرور (PIN) للمتابعة.
+        </p>
+
+        <div class="form-group">
+          <label for="login-user-select">اسم المستخدم</label>
+          <select id="login-user-select" class="input-control">
+            <!-- تعبئة المستخدمين برمجياً -->
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="login-pin-input">رمز المرور الرقمي (PIN)</label>
+          <input type="password" id="login-pin-input" class="input-control" placeholder="••••" inputmode="numeric" maxlength="8">
+          <div class="inline-warning" id="login-error-msg">رمز المرور غير صحيح</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-green" id="btn-login-submit" style="width: 100%;">
+          تسجيل الدخول
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. نافذة إضافة وتعديل موظف (Employee Form Modal) -->
+  <div class="modal-overlay" id="modal-employee-form">
+    <div class="modal-box modal-lg">
+      <div class="modal-header">
+        <h3 id="employee-modal-title">إضافة موظف جديد</h3>
+        <button class="modal-close-btn" data-close="modal-employee-form">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="employee-form" onsubmit="return false;">
+          <input type="hidden" id="emp-id" value="">
+
+          <!-- البيانات الأساسية الإلزامية -->
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label for="emp-national-id">الرقم الوطني <span style="color: var(--color-red);">*</span></label>
+              <input type="text" id="emp-national-id" class="input-control" required placeholder="أرقام فقط..." inputmode="numeric">
+              <div class="inline-warning" id="emp-national-id-warning">تنبيه: هذا الرقم الوطني مسجل مسبقاً</div>
+            </div>
+
+            <div class="form-group">
+              <label for="emp-full-name">الاسم الكامل <span style="color: var(--color-red);">*</span></label>
+              <input type="text" id="emp-full-name" class="input-control" required placeholder="الاسم الرباعي أو الثلاثي...">
+            </div>
+          </div>
+
+          <div class="form-grid-2" style="margin-top: 14px;">
+            <div class="form-group">
+              <label for="emp-status-id">الحالة الوظيفية <span style="color: var(--color-red);">*</span></label>
+              <select id="emp-status-id" class="input-control" required>
+                <!-- خيارات الحالات -->
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="emp-hire-date">تاريخ التعيين</label>
+              <input type="date" id="emp-hire-date" class="input-control">
+            </div>
+          </div>
+
+          <!-- بيانات الوظيفة والدرجة -->
+          <div class="form-grid-3" style="margin-top: 14px;">
+            <div class="form-group">
+              <label for="emp-department">القسم / الإدارة</label>
+              <input type="text" id="emp-department" class="input-control" placeholder="اسم القسم أو الفرع...">
+            </div>
+
+            <div class="form-group">
+              <label for="emp-current-grade">الدرجة الحالية</label>
+              <input type="text" id="emp-current-grade" class="input-control" placeholder="مثال: العاشرة، الأولى...">
+            </div>
+
+            <div class="form-group">
+              <label for="emp-grade-date">تاريخ الدرجة</label>
+              <input type="date" id="emp-grade-date" class="input-control">
+            </div>
+          </div>
+
+          <!-- المؤهل والتخصص -->
+          <div class="form-grid-2" style="margin-top: 14px;">
+            <div class="form-group">
+              <label for="emp-education-level">المؤهل العلمي</label>
+              <input type="text" id="emp-education-level" class="input-control" placeholder="بكالوريوس، ماجستير، دبلوم...">
+            </div>
+
+            <div class="form-group">
+              <label for="emp-specialization">التخصص</label>
+              <input type="text" id="emp-specialization" class="input-control" placeholder="إدارة، محاسبة، قانون...">
+            </div>
+          </div>
+
+          <!-- الحقول الديناميكية والمخصصة -->
+          <div id="dynamic-fields-section" style="margin-top: 20px; display: none;">
+            <div class="section-divider">
+              <span>حقول إضافية مخصصة</span>
+            </div>
+            <div class="form-grid-2" id="dynamic-fields-container" style="margin-top: 14px;">
+              <!-- تُنشأ الحقول هنا برمجياً -->
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" data-close="modal-employee-form">إلغاء</button>
+        <button class="btn btn-green" id="btn-save-employee">
+          <span>💾</span>
+          <span>حفظ البيانات</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. نافذة إعدادات الطباعة والتصدير (Print Setup Modal) -->
+  <div class="modal-overlay" id="modal-print-setup">
+    <div class="modal-box modal-lg">
+      <div class="modal-header">
+        <h3>إعداد طباعة وتصدير السجلات المحددة</h3>
+        <button class="modal-close-btn" data-close="modal-print-setup">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 14px; color: var(--primary-navy); font-weight: 600;" id="print-selected-info">
+          عدد الموظفين المحددين للطباعة: 0 موظف
+        </p>
+
+        <!-- اختيار نوع التقرير -->
+        <div class="form-group">
+          <label style="font-size: 14px; font-weight: 700;">1. اختر نوع التقرير:</label>
+          <div class="report-type-card">
+            <div class="type-radio-box selected" id="radio-report-cards">
+              <input type="radio" name="report_type" id="report-type-cards" value="cards" checked style="accent-color: var(--primary-navy);">
+              <div>
+                <strong style="display: block; font-size: 14px;">بطاقة موظف مستقلة</strong>
+                <span style="font-size: 12px; color: var(--text-muted);">صفحة A4 أنيقة ومستقلة لكل موظف على حدة</span>
+              </div>
+            </div>
+
+            <div class="type-radio-box" id="radio-report-table">
+              <input type="radio" name="report_type" id="report-type-table" value="table" style="accent-color: var(--primary-navy);">
+              <div>
+                <strong style="display: block; font-size: 14px;">كشف جدولي مجمع</strong>
+                <span style="font-size: 12px; color: var(--text-muted);">جدول أفقي متتابع مع تكرار العناوين في كل صفحة</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- اختيار الحقول المضمنة -->
+        <div class="form-group" style="margin-top: 10px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label style="font-size: 14px; font-weight: 700;">2. حدد الحقول المطلوب إظهارها في التقرير:</label>
+            <label class="checkbox-label" style="font-weight: 600; color: var(--primary-navy);">
+              <input type="checkbox" id="print-toggle-all-fields" checked class="table-checkbox">
+              <span>تحديد / إلغاء تحديد الكل</span>
+            </label>
+          </div>
+          <div class="print-options-grid" id="print-fields-checklist">
+            <!-- خيارات الحقول -->
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" data-close="modal-print-setup">إغلاق</button>
+        <button class="btn btn-blue" id="btn-do-word-export">
+          <span>📄</span>
+          <span>تصدير كملف Word (.docx)</span>
+        </button>
+        <button class="btn btn-green" id="btn-do-print">
+          <span>🖨️</span>
+          <span>طباعة فورية / PDF</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. نافذة معالج استيراد الإكسل (Excel Import Wizard Modal) -->
+  <div class="modal-overlay" id="modal-excel-import">
+    <div class="modal-box modal-lg">
+      <div class="modal-header">
+        <h3>معالج استيراد بيانات الموظفين من ملف إكسل</h3>
+        <button class="modal-close-btn" data-close="modal-excel-import">&times;</button>
+      </div>
+      <div class="modal-body" id="import-modal-body">
+
+        <!-- الخطوة 1: اختيار الملف -->
+        <div id="import-step-upload" style="text-align: center; padding: 24px;">
+          <div style="font-size: 48px; margin-bottom: 12px;">📊</div>
+          <h4 style="font-size: 16px; margin-bottom: 8px;">اختر ملف الإكسل المطلوب استيراد بياناته</h4>
+          <p style="font-size: 13px; color: var(--text-muted); max-width: 520px; margin: 0 auto 20px auto; line-height: 1.6;">
+            يجب أن يحتوي السطر الأول على ترويسة الأعمدة، ويشترط وجود عمودي [الرقم الوطني] و [الاسم] في كل سطر بيانات.
+          </p>
+          <button class="btn btn-blue" id="btn-browse-excel-file" style="margin: 0 auto;">
+            <span>📁</span>
+            <span>اختيار ملف الإكسل (.xlsx)</span>
+          </button>
+        </div>
+
+        <!-- الخطوة 2: مرحلة فض التعارضات -->
+        <div id="import-step-conflicts" style="display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <p style="font-weight: 700; color: #B45309;" id="import-conflicts-title">
+              ⚠️ تم العثور على أرقام وطنية مسجلة مسبقاً في النظام
+            </p>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn btn-sm btn-outline" id="btn-resolve-update-all">تحديث الكل</button>
+              <button class="btn btn-sm btn-outline" id="btn-resolve-skip-all">تخطي الكل</button>
+            </div>
+          </div>
+          <div id="conflicts-list-container" style="display: flex; flex-direction: column; gap: 12px; max-height: 360px; overflow-y: auto;">
+            <!-- بطاقات التعارضات -->
+          </div>
+        </div>
+
+        <!-- الخطوة 3: ملخص الانتهاء والنجاح -->
+        <div id="import-step-summary" style="display: none; text-align: center; padding: 24px;">
+          <div style="font-size: 48px; color: var(--color-green); margin-bottom: 12px;">✅</div>
+          <h4 style="font-size: 17px; color: var(--color-green); margin-bottom: 10px;" id="import-summary-title">تمت عملية الاستيراد بنجاح</h4>
+          <p style="font-size: 14px; color: #334155; line-height: 1.6;" id="import-summary-text"></p>
+        </div>
+
+      </div>
+      <div class="modal-footer" id="import-modal-footer">
+        <button class="btn btn-outline" data-close="modal-excel-import">إغلاق</button>
+        <button class="btn btn-green" id="btn-import-commit" style="display: none;">
+          <span>تأكيد وحفظ البيانات المستوردة</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. نافذة إعدادات الحقول الديناميكية والحالات (Settings Modal - Admin Only) -->
+  <div class="modal-overlay" id="modal-settings">
+    <div class="modal-box modal-lg">
+      <div class="modal-header">
+        <h3>إدارة الحقول الديناميكية والحالات الوظيفية</h3>
+        <button class="modal-close-btn" data-close="modal-settings">&times;</button>
+      </div>
+      <div class="modal-body">
+        
+        <!-- التبويبات -->
+        <div style="display: flex; gap: 10px; border-bottom: 2px solid var(--color-gray-border); padding-bottom: 10px;">
+          <button class="btn btn-sm btn-blue" id="tab-btn-fields">الحقول الديناميكية</button>
+          <button class="btn btn-sm btn-outline" id="tab-btn-statuses">الحالات الوظيفية</button>
+        </div>
+
+        <!-- محتوى تبويب الحقول الديناميكية -->
+        <div id="tab-content-fields">
+          <div style="background: #F8FAFC; padding: 14px; border-radius: var(--radius-md); border: 1px solid var(--color-gray-border); margin-bottom: 16px;">
+            <h4 style="font-size: 13.5px; margin-bottom: 10px; color: var(--primary-navy);">إضافة حقل جديد للسجلات:</h4>
+            <div class="form-grid-3">
+              <div class="form-group">
+                <label>مفتاح الحقل (إنجليزي)</label>
+                <input type="text" id="new-field-key" class="input-control" placeholder="مثال: phone_number">
+              </div>
+              <div class="form-group">
+                <label>التسمية المعروضة (عربي)</label>
+                <input type="text" id="new-field-label" class="input-control" placeholder="مثال: رقم الهاتف">
+              </div>
+              <div class="form-group">
+                <label>ترتيب العرض</label>
+                <input type="number" id="new-field-order" class="input-control" value="0">
+              </div>
+            </div>
+            <button class="btn btn-green btn-sm" id="btn-add-field-submit" style="margin-top: 10px;">
+              ➕ إضافة الحقل
+            </button>
+          </div>
+
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>المفتاح البرمجي</th>
+                <th>التسمية</th>
+                <th>ترتيب العرض</th>
+                <th>الحالة</th>
+                <th>إجراء</th>
+              </tr>
+            </thead>
+            <tbody id="fields-table-body">
+              <!-- الحقول -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- محتوى تبويب الحالات الوظيفية -->
+        <div id="tab-content-statuses" style="display: none;">
+          <div style="background: #F8FAFC; padding: 14px; border-radius: var(--radius-md); border: 1px solid var(--color-gray-border); margin-bottom: 16px;">
+            <h4 style="font-size: 13.5px; margin-bottom: 10px; color: var(--primary-navy);">إضافة حالة وظيفية جديدة:</h4>
+            <div style="display: flex; gap: 12px; align-items: flex-end;">
+              <div class="form-group" style="flex: 1;">
+                <label>اسم الحالة</label>
+                <input type="text" id="new-status-name" class="input-control" placeholder="مثال: تحت الاختبار">
+              </div>
+              <button class="btn btn-green btn-sm" id="btn-add-status-submit">
+                ➕ إضافة الحالة
+              </button>
+            </div>
+          </div>
+
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>معرف الحالة</th>
+                <th>اسم الحالة</th>
+                <th>الحالة التشغيلية</th>
+                <th>إجراء</th>
+              </tr>
+            </thead>
+            <tbody id="statuses-table-body">
+              <!-- الحالات -->
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" data-close="modal-settings">إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. نافذة التحذير والتأكيد العامة (Confirmation Modal) -->
+  <div class="modal-overlay" id="modal-confirm">
+    <div class="modal-box" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3 id="confirm-modal-title" style="color: var(--color-red);">تأكيد الإجراء</h3>
+      </div>
+      <div class="modal-body">
+        <p id="confirm-modal-text" style="font-size: 14px; line-height: 1.6; color: #334155;">
+          هل أنت متأكد من رغبتك في إتمام هذا الإجراء؟
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="btn-confirm-cancel">إلغاء</button>
+        <button class="btn btn-red" id="btn-confirm-proceed">متابعة الحذف</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. نافذة التنبيه والإخطار العامة المطمئنة (Alert Modal) -->
+  <div class="modal-overlay" id="modal-alert">
+    <div class="modal-box" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3 id="alert-modal-title">تنبيه النظام</h3>
+      </div>
+      <div class="modal-body">
+        <p id="alert-modal-text" style="font-size: 14px; line-height: 1.6; color: #334155;"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-blue" data-close="modal-alert">حسناً، فهمت</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== حاوية الطباعة الخاصة بمحرك المتصفح (Print Root) ==================== -->
+  <div id="print-root">
+    <!-- يتم بناء محتوى الطباعة هنا فور النقر على طباعة -->
+  </div>
+
+  <!-- حاوية إشعارات التوست اللطيفة -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- ملف المنطق البرمجي للواجهة -->
+  <script src="app.js"></script>
+</body>
+</html>
